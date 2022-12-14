@@ -1,33 +1,2214 @@
--- This file is to bootstrap a database for the CS3200 project. 
-
--- Create a new database.  You can change the name later.  You'll
--- need this name in the FLASK API file(s),  the AppSmith 
--- data source creation.
-create database cool_db;
+-- Create database
+create database lims;
 
 -- Via the Docker Compose file, a special user called webapp will 
--- be created in MySQL. We are going to grant that user 
--- all privilages to the new database we just created. 
--- TODO: If you changed the name of the database above, you need 
--- to change it here too.
-grant all privileges on cool_db.* to 'webapp'@'%';
+-- be created in MySQL. Grant that user all privileges 
+-- to the new database just created
+grant all privileges on lims.* to 'webapp'@'%';
 flush privileges;
 
--- Move into the database we just created.
--- TODO: If you changed the name of the database above, you need to
--- change it here too. 
-use cool_db;
+-- Move into the database we just created
+USE lims;
 
--- Put your DDL 
-CREATE TABLE test_table (
-  name VARCHAR(20),
-  color VARCHAR(10)
+-- Create tables in database 
+CREATE TABLE users(
+    id INT AUTO_INCREMENT NOT NULL,
+    first_name VARCHAR(255),
+    last_name VARCHAR(255),
+    username VARCHAR(255) GENERATED ALWAYS AS 
+		(CONCAT(first_name, '.', last_name)),
+    email VARCHAR(255) GENERATED ALWAYS AS
+		(CONCAT(username, '@biotech.com')),
+    PRIMARY KEY (id)
 );
 
--- Add sample data. 
-INSERT INTO test_table
-  (name, color)
-VALUES
-  ('dev', 'blue'),
-  ('pro', 'yellow'),
-  ('junior', 'red');
+CREATE TABLE target(
+    id INT AUTO_INCREMENT NOT NULL,
+    target_code VARCHAR(255),
+    target_name VARCHAR(255),
+    length INT (255),
+    num_variants INT,
+    PRIMARY KEY (id)
+);
+
+
+CREATE TABLE protein(
+    id INT AUTO_INCREMENT NOT NULL,
+    name VARCHAR(255),
+    mol_weight DECIMAL(6,3),
+    theoretical_pi DECIMAL(6, 3),
+    target_id INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_1 
+        FOREIGN KEY (target_id) REFERENCES target(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE protein_batch(
+    id INT AUTO_INCREMENT NOT NULL,
+    batch_num INT,
+    name VARCHAR(255),
+    parent_id INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_2
+        FOREIGN KEY (parent_id) REFERENCES protein(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+
+CREATE TABLE experiment(
+    id INT AUTO_INCREMENT NOT NULL,
+    exp_num VARCHAR(255),
+    date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
+    creator_id INT NOT NULL,
+    batch_id INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_3 
+        FOREIGN KEY (creator_id) REFERENCES users(id)
+        ON UPDATE cascade ON DELETE restrict,
+    CONSTRAINT fk_4
+        FOREIGN KEY (batch_id) REFERENCES protein_batch(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE cell_line(
+    id INT AUTO_INCREMENT NOT NULL,
+    name VARCHAR(255),
+    species VARCHAR(255),
+    tissue VARCHAR(255),
+    PRIMARY KEY (id)
+);
+
+
+CREATE TABLE thermostability(
+    exp_id INT NOT NULL,
+    trial_num INT NOT NULL,
+    onset_temp DECIMAL(6,3),
+    midpoint_temp DECIMAL(6,3),
+    PRIMARY KEY (exp_id, trial_num),
+    CONSTRAINT fk_5
+        FOREIGN KEY (exp_id) REFERENCES experiment(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE purity(
+    exp_id INT NOT NULL,
+    trial_num INT NOT NULL,
+    purified_amount DECIMAL(6,3),
+    purified_yield DECIMAL(6,3),
+    PRIMARY KEY (exp_id, trial_num),
+    CONSTRAINT fk_6
+        FOREIGN KEY (exp_id) REFERENCES experiment(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE hydrophobicity(
+    exp_id INT NOT NULL,
+    trial_num INT NOT NULL,
+    retention_time DECIMAL(6,3),
+    PRIMARY KEY (exp_id, trial_num),
+    CONSTRAINT fk_7 
+        FOREIGN KEY (exp_id) REFERENCES experiment(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE size_analysis(
+    exp_id INT NOT NULL,
+    trial_num INT NOT NULL,
+    percent_heavy DECIMAL(6,3),
+    percent_light DECIMAL(6,3),
+    percent_main DECIMAL(6,3),
+    PRIMARY KEY (exp_id, trial_num),
+    CONSTRAINT fk_8
+        FOREIGN KEY (exp_id) REFERENCES experiment(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE pi_analysis(
+    exp_id INT NOT NULL,
+    trial_num INT NOT NULL,
+    percent_acidic DECIMAL(6,3),
+    percent_basic DECIMAL(6,3),
+    percent_main DECIMAL(6,3),
+    experimental_pi DECIMAL(6,3),
+    PRIMARY KEY (exp_id, trial_num),
+    CONSTRAINT fk_9 
+        FOREIGN KEY (exp_id) REFERENCES experiment(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE cell_lysis(
+    exp_id INT NOT NULL,
+    trial_num INT NOT NULL,
+    max_lysis DECIMAL(6,3),
+    ec50 DECIMAL(6,3),
+    cell_line_id INT NOT NULL,
+    PRIMARY KEY (exp_id, trial_num),
+    CONSTRAINT fk_10 
+        FOREIGN KEY (exp_id) REFERENCES experiment(id)
+        ON UPDATE cascade ON DELETE restrict,
+	CONSTRAINT fk_11
+		FOREIGN KEY (cell_line_id) REFERENCES cell_line(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE cell_binding(
+    exp_id INT NOT NULL,
+    trial_num INT NOT NULL,
+    max_expression DECIMAL(6,3),
+    ec50 DECIMAL(6,3),
+    cell_line_id INT NOT NULL,
+    PRIMARY KEY (exp_id, trial_num),
+    CONSTRAINT fk_12
+        FOREIGN KEY (exp_id) REFERENCES experiment(id)
+        ON UPDATE cascade ON DELETE restrict,
+	CONSTRAINT fk_13
+		FOREIGN KEY (cell_line_id) REFERENCES cell_line(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+CREATE TABLE cell_activation(
+    exp_id INT NOT NULL,
+    trial_num INT NOT NULL,
+    max_activation DECIMAL(6,3),
+    ec50 DECIMAL(3,3),
+    cell_line_id INT NOT NULL,
+    PRIMARY KEY (exp_id, trial_num),
+    CONSTRAINT fk_14
+        FOREIGN KEY (exp_id) REFERENCES experiment(id)
+        ON UPDATE cascade ON DELETE restrict,
+	CONSTRAINT fk_15
+		FOREIGN KEY (cell_line_id) REFERENCES cell_line(id)
+        ON UPDATE cascade ON DELETE restrict
+);
+
+-- Insert mock data into the tables (generated using Mockaroo) 
+insert into users (first_name, last_name) values ('Larry', 'Benner');
+insert into users (first_name, last_name) values ('Frasquito', 'Augustus');
+insert into users (first_name, last_name) values ('Michele', 'D''Ruel');
+insert into users (first_name, last_name) values ('Aline', 'Perico');
+insert into users (first_name, last_name) values ('Shelley', 'Peinton');
+insert into users (first_name, last_name) values ('Warren', 'Blaszczak');
+insert into users (first_name, last_name) values ('Odille', 'Mager');
+insert into users (first_name, last_name) values ('Zedekiah', 'Drinkhall');
+insert into users (first_name, last_name) values ('Abra', 'Coombes');
+insert into users (first_name, last_name) values ('Gayle', 'Batiste');
+insert into users (first_name, last_name) values ('Jessalyn', 'Jockle');
+insert into users (first_name, last_name) values ('Giorgio', 'Jagg');
+insert into users (first_name, last_name) values ('Hamel', 'Marchbank');
+insert into users (first_name, last_name) values ('Pegeen', 'Lamming');
+insert into users (first_name, last_name) values ('Berne', 'Sauvain');
+insert into users (first_name, last_name) values ('Olin', 'Abbitt');
+insert into users (first_name, last_name) values ('Maggi', 'Gatesman');
+insert into users (first_name, last_name) values ('Paulette', 'Handyside');
+insert into users (first_name, last_name) values ('Anderson', 'Kimbury');
+insert into users (first_name, last_name) values ('Denny', 'MacNeillie');
+insert into users (first_name, last_name) values ('Piper', 'Agent');
+insert into users (first_name, last_name) values ('Haydon', 'Lamplugh');
+insert into users (first_name, last_name) values ('Lyndsey', 'Snaith');
+insert into users (first_name, last_name) values ('Nathalie', 'Favela');
+insert into users (first_name, last_name) values ('Agustin', 'Lucian');
+insert into users (first_name, last_name) values ('Elsey', 'Osbaldeston');
+insert into users (first_name, last_name) values ('Care', 'Westby');
+insert into users (first_name, last_name) values ('Tucky', 'Spere');
+insert into users (first_name, last_name) values ('Stormy', 'McGill');
+insert into users (first_name, last_name) values ('Lionello', 'Blazeby');
+insert into users (first_name, last_name) values ('Talyah', 'Peron');
+insert into users (first_name, last_name) values ('Vanya', 'Whatsize');
+insert into users (first_name, last_name) values ('Dwight', 'Quye');
+insert into users (first_name, last_name) values ('Em', 'Daens');
+insert into users (first_name, last_name) values ('Pearline', 'Hackett');
+insert into users (first_name, last_name) values ('Anett', 'Robotham');
+insert into users (first_name, last_name) values ('Florance', 'Boxhall');
+insert into users (first_name, last_name) values ('Shara', 'Salerg');
+insert into users (first_name, last_name) values ('Maddy', 'Ruler');
+insert into users (first_name, last_name) values ('Frazier', 'Dumbar');
+insert into users (first_name, last_name) values ('Carry', 'Busher');
+insert into users (first_name, last_name) values ('Celeste', 'Jesse');
+insert into users (first_name, last_name) values ('Tanhya', 'Rake');
+insert into users (first_name, last_name) values ('Tara', 'Antonescu');
+insert into users (first_name, last_name) values ('Ariadne', 'Tozer');
+insert into users (first_name, last_name) values ('Jess', 'Akitt');
+insert into users (first_name, last_name) values ('Leora', 'Pittam');
+insert into users (first_name, last_name) values ('Lucien', 'Conningham');
+insert into users (first_name, last_name) values ('Hazel', 'Aspy');
+insert into users (first_name, last_name) values ('Nikaniki', 'Reboul');
+insert into users (first_name, last_name) values ('Ruby', 'Lynett');
+insert into users (first_name, last_name) values ('Rebeka', 'Kelcher');
+insert into users (first_name, last_name) values ('Jerrylee', 'Sandry');
+insert into users (first_name, last_name) values ('Arlan', 'Renshaw');
+insert into users (first_name, last_name) values ('Merill', 'Darrow');
+insert into users (first_name, last_name) values ('Dolli', 'Waterstone');
+insert into users (first_name, last_name) values ('Joell', 'Floch');
+insert into users (first_name, last_name) values ('Jenilee', 'Aird');
+insert into users (first_name, last_name) values ('Bryn', 'Olivier');
+insert into users (first_name, last_name) values ('Sawyere', 'Riggey');
+insert into users (first_name, last_name) values ('Catharine', 'Posselt');
+insert into users (first_name, last_name) values ('Kinny', 'Hiom');
+insert into users (first_name, last_name) values ('Mellie', 'MacGrath');
+insert into users (first_name, last_name) values ('Audrye', 'Dugald');
+insert into users (first_name, last_name) values ('Gianni', 'McMonies');
+insert into users (first_name, last_name) values ('Ranna', 'Iannini');
+insert into users (first_name, last_name) values ('Guenevere', 'Proudler');
+insert into users (first_name, last_name) values ('Ansel', 'Avramchik');
+insert into users (first_name, last_name) values ('Pansie', 'Comello');
+insert into users (first_name, last_name) values ('Caterina', 'Caplan');
+insert into users (first_name, last_name) values ('Ethelin', 'Print');
+insert into users (first_name, last_name) values ('Tobie', 'Else');
+insert into users (first_name, last_name) values ('Kenneth', 'Arrighini');
+insert into users (first_name, last_name) values ('Anna-maria', 'Chatenet');
+insert into users (first_name, last_name) values ('Toiboid', 'McCrystal');
+insert into users (first_name, last_name) values ('Britt', 'Waplington');
+insert into users (first_name, last_name) values ('Cate', 'Acuna');
+insert into users (first_name, last_name) values ('Lannie', 'Killby');
+insert into users (first_name, last_name) values ('Agatha', 'Sommerscales');
+insert into users (first_name, last_name) values ('Louisa', 'Ellor');
+insert into users (first_name, last_name) values ('Barnard', 'Tock');
+insert into users (first_name, last_name) values ('Sarah', 'De Goey');
+insert into users (first_name, last_name) values ('Costanza', 'Chumley');
+insert into users (first_name, last_name) values ('Janek', 'Longland');
+insert into users (first_name, last_name) values ('Creighton', 'Grigoliis');
+insert into users (first_name, last_name) values ('Alisha', 'Fattorini');
+insert into users (first_name, last_name) values ('Kaleb', 'Blackeby');
+insert into users (first_name, last_name) values ('Bil', 'Hatherill');
+insert into users (first_name, last_name) values ('Kimball', 'Haresnape');
+insert into users (first_name, last_name) values ('Carroll', 'Annion');
+insert into users (first_name, last_name) values ('Tiphanie', 'Toulson');
+insert into users (first_name, last_name) values ('Emalia', 'Megarry');
+insert into users (first_name, last_name) values ('Justus', 'Dulany');
+insert into users (first_name, last_name) values ('Elfreda', 'Sharphouse');
+insert into users (first_name, last_name) values ('Josselyn', 'Condell');
+insert into users (first_name, last_name) values ('Daffy', 'Copner');
+insert into users (first_name, last_name) values ('Tim', 'Karleman');
+insert into users (first_name, last_name) values ('Killy', 'Kuhl');
+insert into users (first_name, last_name) values ('Liv', 'Moxsom');
+insert into users (first_name, last_name) values ('Osbourn', 'Munnery');
+
+INSERT INTO target (target_code, target_name, length, num_variants)
+VALUES 
+('MUC15', 'Mucin-16', 14507, 25),
+('FOLR1', 'Folate receptor alpha', 257, 2),
+('CLDN6', 'Claudin-6', 220, 1),
+('EGFR', 'Epidermal growth factor receptor', 1210, 40),
+('MUC1', 'Mucin-1', 1255, 2),
+('ERBB2', 'Receptor tyrosine-protein kinase erbB-2', 1255, 13),
+('TACSTD2', 'Tumor-associated calcium signal transducer 2', 323, 3),
+('FOLH1', 'Glutamate carboxypeptidase', 750, 4),
+('MET', 'Hepatocyte growth factor receptor', 1390, 36),
+('IGF2R', 'Cation-independent mannose-6-phosphate receptor', 2491, 25)
+;
+
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (1, 'PROT1', 25.326, 5.845, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (2, 'PROT2', 32.361, 9.314, 8);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (3, 'PROT3', 31.62, 5.648, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (4, 'PROT4', 35.329, 8.073, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (5, 'PROT5', 37.663, 8.562, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (6, 'PROT6', 47.989, 6.737, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (7, 'PROT7', 36.441, 9.619, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (8, 'PROT8', 38.396, 5.55, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (9, 'PROT9', 30.84, 9.174, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (10, 'PROT10', 39.899, 8.439, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (11, 'PROT11', 27.254, 4.858, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (12, 'PROT12', 42.674, 5.567, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (13, 'PROT13', 35.788, 5.972, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (14, 'PROT14', 43.761, 6.718, 8);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (15, 'PROT15', 29.413, 4.543, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (16, 'PROT16', 38.126, 8.776, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (17, 'PROT17', 32.032, 9.001, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (18, 'PROT18', 42.795, 4.133, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (19, 'PROT19', 48.305, 4.97, 6);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (20, 'PROT20', 45.525, 7.99, 8);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (21, 'PROT21', 36.025, 9.682, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (22, 'PROT22', 41.008, 9.501, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (23, 'PROT23', 30.359, 7.521, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (24, 'PROT24', 43.704, 7.294, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (25, 'PROT25', 49.191, 4.473, 4);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (26, 'PROT26', 37.462, 9.015, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (27, 'PROT27', 35.16, 8.829, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (28, 'PROT28', 30.347, 6.277, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (29, 'PROT29', 37.0, 9.424, 4);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (30, 'PROT30', 30.905, 8.823, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (31, 'PROT31', 42.364, 9.48, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (32, 'PROT32', 39.639, 9.639, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (33, 'PROT33', 45.607, 9.208, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (34, 'PROT34', 47.552, 4.523, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (35, 'PROT35', 44.03, 9.175, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (36, 'PROT36', 42.215, 4.589, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (37, 'PROT37', 45.459, 7.17, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (38, 'PROT38', 44.856, 8.505, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (39, 'PROT39', 43.738, 4.107, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (40, 'PROT40', 45.478, 6.097, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (41, 'PROT41', 29.974, 5.993, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (42, 'PROT42', 48.902, 5.453, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (43, 'PROT43', 33.502, 4.72, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (44, 'PROT44', 35.116, 7.561, 4);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (45, 'PROT45', 30.948, 9.098, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (46, 'PROT46', 44.534, 8.921, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (47, 'PROT47', 30.59, 8.053, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (48, 'PROT48', 36.543, 5.587, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (49, 'PROT49', 49.704, 4.537, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (50, 'PROT50', 46.408, 6.248, 4);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (51, 'PROT51', 31.142, 5.853, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (52, 'PROT52', 39.663, 5.297, 4);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (53, 'PROT53', 39.787, 5.54, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (54, 'PROT54', 44.132, 4.229, 8);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (55, 'PROT55', 33.731, 7.755, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (56, 'PROT56', 40.604, 8.443, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (57, 'PROT57', 31.199, 9.3, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (58, 'PROT58', 26.18, 5.926, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (59, 'PROT59', 41.311, 6.713, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (60, 'PROT60', 40.902, 9.178, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (61, 'PROT61', 28.781, 6.941, 6);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (62, 'PROT62', 48.87, 5.766, 6);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (63, 'PROT63', 28.401, 6.814, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (64, 'PROT64', 39.046, 4.682, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (65, 'PROT65', 35.734, 4.557, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (66, 'PROT66', 25.319, 9.039, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (67, 'PROT67', 37.221, 4.227, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (68, 'PROT68', 41.317, 4.136, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (69, 'PROT69', 38.976, 8.554, 6);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (70, 'PROT70', 42.473, 7.134, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (71, 'PROT71', 25.276, 6.831, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (72, 'PROT72', 41.167, 6.624, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (73, 'PROT73', 29.671, 9.453, 8);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (74, 'PROT74', 48.345, 5.233, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (75, 'PROT75', 39.323, 9.914, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (76, 'PROT76', 31.099, 6.429, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (77, 'PROT77', 31.598, 9.606, 6);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (78, 'PROT78', 49.258, 6.111, 8);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (79, 'PROT79', 43.944, 8.442, 6);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (80, 'PROT80', 44.873, 8.51, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (81, 'PROT81', 49.336, 7.333, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (82, 'PROT82', 30.261, 4.987, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (83, 'PROT83', 31.794, 5.172, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (84, 'PROT84', 36.601, 7.243, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (85, 'PROT85', 31.593, 6.931, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (86, 'PROT86', 45.698, 4.884, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (87, 'PROT87', 34.867, 9.826, 6);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (88, 'PROT88', 37.702, 8.863, 8);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (89, 'PROT89', 41.554, 8.752, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (90, 'PROT90', 41.891, 6.964, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (91, 'PROT91', 45.656, 7.077, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (92, 'PROT92', 28.96, 7.858, 9);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (93, 'PROT93', 47.427, 8.499, 3);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (94, 'PROT94', 36.207, 9.268, 10);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (95, 'PROT95', 33.044, 8.933, 7);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (96, 'PROT96', 37.51, 8.352, 1);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (97, 'PROT97', 46.239, 5.455, 2);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (98, 'PROT98', 39.622, 5.378, 5);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (99, 'PROT99', 44.647, 9.239, 6);
+insert into protein (id, name, mol_weight, theoretical_pi, target_id) values (100, 'PROT100', 40.715, 9.802, 4);
+
+insert into protein_batch (id, batch_num, parent_id, name) values (1, 2, 1, 'PROT1-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (2, 3, 98, 'PROT98-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (3, 1, 21, 'PROT21-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (4, 1, 75, 'PROT75-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (5, 3, 68, 'PROT68-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (6, 3, 87, 'PROT87-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (7, 4, 10, 'PROT10-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (8, 4, 42, 'PROT42-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (9, 2, 39, 'PROT39-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (10, 1, 25, 'PROT25-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (11, 5, 84, 'PROT84-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (12, 2, 40, 'PROT40-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (13, 5, 11, 'PROT11-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (14, 1, 48, 'PROT48-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (15, 1, 1, 'PROT1-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (16, 3, 54, 'PROT54-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (17, 3, 69, 'PROT69-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (18, 2, 20, 'PROT20-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (19, 4, 26, 'PROT26-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (20, 3, 45, 'PROT45-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (21, 5, 75, 'PROT75-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (22, 4, 1, 'PROT1-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (23, 3, 1, 'PROT1-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (24, 3, 18, 'PROT18-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (25, 1, 98, 'PROT98-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (26, 3, 1, 'PROT1-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (27, 5, 41, 'PROT41-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (28, 4, 9, 'PROT9-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (29, 5, 25, 'PROT25-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (30, 1, 44, 'PROT44-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (31, 1, 45, 'PROT45-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (32, 3, 65, 'PROT65-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (33, 2, 56, 'PROT56-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (34, 4, 54, 'PROT54-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (35, 2, 60, 'PROT60-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (36, 3, 52, 'PROT52-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (37, 1, 23, 'PROT23-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (38, 1, 96, 'PROT96-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (39, 4, 28, 'PROT28-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (40, 1, 56, 'PROT56-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (41, 1, 14, 'PROT14-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (42, 2, 99, 'PROT99-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (43, 1, 42, 'PROT42-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (44, 4, 9, 'PROT9-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (45, 2, 44, 'PROT44-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (46, 4, 8, 'PROT8-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (47, 2, 45, 'PROT45-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (48, 2, 82, 'PROT82-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (49, 4, 10, 'PROT10-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (50, 5, 49, 'PROT49-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (51, 1, 65, 'PROT65-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (52, 5, 69, 'PROT69-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (53, 1, 31, 'PROT31-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (54, 5, 86, 'PROT86-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (55, 5, 69, 'PROT69-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (56, 3, 70, 'PROT70-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (57, 2, 6, 'PROT6-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (58, 4, 50, 'PROT50-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (59, 5, 58, 'PROT58-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (60, 1, 26, 'PROT26-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (61, 2, 20, 'PROT20-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (62, 3, 39, 'PROT39-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (63, 1, 35, 'PROT35-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (64, 5, 8, 'PROT8-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (65, 3, 77, 'PROT77-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (66, 4, 98, 'PROT98-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (67, 3, 100, 'PROT100-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (68, 1, 60, 'PROT60-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (69, 3, 64, 'PROT64-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (70, 4, 21, 'PROT21-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (71, 4, 26, 'PROT26-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (72, 4, 68, 'PROT68-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (73, 3, 88, 'PROT88-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (74, 1, 65, 'PROT65-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (75, 3, 29, 'PROT29-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (76, 4, 68, 'PROT68-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (77, 2, 63, 'PROT63-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (78, 3, 19, 'PROT19-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (79, 5, 66, 'PROT66-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (80, 2, 23, 'PROT23-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (81, 1, 63, 'PROT63-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (82, 3, 96, 'PROT96-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (83, 3, 69, 'PROT69-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (84, 3, 97, 'PROT97-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (85, 2, 96, 'PROT96-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (86, 1, 91, 'PROT91-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (87, 2, 15, 'PROT15-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (88, 3, 10, 'PROT10-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (89, 4, 93, 'PROT93-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (90, 1, 72, 'PROT72-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (91, 1, 58, 'PROT58-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (92, 3, 65, 'PROT65-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (93, 5, 33, 'PROT33-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (94, 3, 15, 'PROT15-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (95, 2, 70, 'PROT70-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (96, 5, 47, 'PROT47-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (97, 3, 97, 'PROT97-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (98, 3, 52, 'PROT52-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (99, 1, 11, 'PROT11-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (100, 1, 94, 'PROT94-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (101, 2, 44, 'PROT44-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (102, 5, 81, 'PROT81-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (103, 2, 71, 'PROT71-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (104, 4, 46, 'PROT46-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (105, 3, 5, 'PROT5-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (106, 3, 72, 'PROT72-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (107, 5, 48, 'PROT48-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (108, 3, 87, 'PROT87-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (109, 1, 31, 'PROT31-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (110, 1, 99, 'PROT99-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (111, 4, 69, 'PROT69-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (112, 4, 63, 'PROT63-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (113, 3, 26, 'PROT26-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (114, 4, 82, 'PROT82-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (115, 3, 11, 'PROT11-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (116, 2, 2, 'PROT2-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (117, 1, 85, 'PROT85-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (118, 3, 11, 'PROT11-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (119, 2, 75, 'PROT75-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (120, 4, 62, 'PROT62-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (121, 5, 22, 'PROT22-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (122, 1, 33, 'PROT33-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (123, 1, 32, 'PROT32-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (124, 3, 44, 'PROT44-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (125, 5, 12, 'PROT12-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (126, 3, 19, 'PROT19-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (127, 4, 40, 'PROT40-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (128, 5, 5, 'PROT5-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (129, 1, 52, 'PROT52-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (130, 4, 94, 'PROT94-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (131, 1, 34, 'PROT34-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (132, 3, 36, 'PROT36-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (133, 2, 23, 'PROT23-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (134, 3, 86, 'PROT86-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (135, 3, 71, 'PROT71-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (136, 3, 91, 'PROT91-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (137, 1, 4, 'PROT4-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (138, 3, 85, 'PROT85-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (139, 3, 57, 'PROT57-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (140, 1, 43, 'PROT43-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (141, 5, 95, 'PROT95-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (142, 5, 62, 'PROT62-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (143, 3, 90, 'PROT90-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (144, 2, 15, 'PROT15-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (145, 1, 31, 'PROT31-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (146, 3, 31, 'PROT31-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (147, 2, 61, 'PROT61-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (148, 4, 29, 'PROT29-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (149, 3, 77, 'PROT77-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (150, 3, 25, 'PROT25-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (151, 1, 48, 'PROT48-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (152, 5, 62, 'PROT62-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (153, 4, 89, 'PROT89-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (154, 1, 3, 'PROT3-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (155, 1, 78, 'PROT78-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (156, 5, 70, 'PROT70-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (157, 2, 9, 'PROT9-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (158, 1, 54, 'PROT54-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (159, 2, 49, 'PROT49-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (160, 2, 4, 'PROT4-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (161, 3, 9, 'PROT9-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (162, 5, 31, 'PROT31-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (163, 1, 50, 'PROT50-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (164, 2, 3, 'PROT3-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (165, 5, 17, 'PROT17-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (166, 1, 43, 'PROT43-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (167, 1, 37, 'PROT37-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (168, 4, 24, 'PROT24-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (169, 1, 76, 'PROT76-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (170, 5, 41, 'PROT41-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (171, 4, 72, 'PROT72-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (172, 5, 31, 'PROT31-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (173, 1, 1, 'PROT1-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (174, 2, 50, 'PROT50-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (175, 2, 83, 'PROT83-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (176, 4, 41, 'PROT41-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (177, 1, 23, 'PROT23-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (178, 3, 98, 'PROT98-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (179, 5, 32, 'PROT32-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (180, 3, 69, 'PROT69-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (181, 1, 60, 'PROT60-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (182, 2, 98, 'PROT98-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (183, 1, 98, 'PROT98-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (184, 3, 90, 'PROT90-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (185, 5, 22, 'PROT22-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (186, 4, 1, 'PROT1-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (187, 2, 61, 'PROT61-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (188, 5, 73, 'PROT73-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (189, 4, 71, 'PROT71-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (190, 4, 20, 'PROT20-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (191, 1, 86, 'PROT86-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (192, 5, 85, 'PROT85-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (193, 2, 47, 'PROT47-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (194, 4, 5, 'PROT5-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (195, 5, 84, 'PROT84-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (196, 2, 67, 'PROT67-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (197, 3, 57, 'PROT57-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (198, 1, 12, 'PROT12-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (199, 1, 30, 'PROT30-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (200, 1, 2, 'PROT2-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (201, 5, 59, 'PROT59-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (202, 3, 53, 'PROT53-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (203, 5, 73, 'PROT73-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (204, 4, 71, 'PROT71-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (205, 5, 8, 'PROT8-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (206, 2, 46, 'PROT46-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (207, 5, 40, 'PROT40-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (208, 3, 68, 'PROT68-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (209, 2, 90, 'PROT90-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (210, 1, 59, 'PROT59-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (211, 5, 3, 'PROT3-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (212, 1, 99, 'PROT99-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (213, 1, 80, 'PROT80-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (214, 1, 26, 'PROT26-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (215, 1, 36, 'PROT36-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (216, 2, 7, 'PROT7-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (217, 5, 30, 'PROT30-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (218, 4, 43, 'PROT43-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (219, 3, 14, 'PROT14-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (220, 5, 3, 'PROT3-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (221, 4, 67, 'PROT67-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (222, 4, 41, 'PROT41-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (223, 4, 88, 'PROT88-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (224, 3, 73, 'PROT73-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (225, 2, 42, 'PROT42-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (226, 5, 30, 'PROT30-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (227, 5, 91, 'PROT91-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (228, 5, 51, 'PROT51-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (229, 1, 72, 'PROT72-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (230, 2, 6, 'PROT6-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (231, 2, 37, 'PROT37-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (232, 5, 7, 'PROT7-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (233, 5, 87, 'PROT87-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (234, 2, 87, 'PROT87-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (235, 5, 66, 'PROT66-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (236, 3, 23, 'PROT23-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (237, 4, 1, 'PROT1-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (238, 2, 75, 'PROT75-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (239, 5, 54, 'PROT54-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (240, 1, 44, 'PROT44-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (241, 5, 48, 'PROT48-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (242, 3, 88, 'PROT88-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (243, 5, 51, 'PROT51-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (244, 4, 56, 'PROT56-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (245, 1, 31, 'PROT31-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (246, 2, 20, 'PROT20-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (247, 2, 32, 'PROT32-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (248, 5, 58, 'PROT58-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (249, 2, 21, 'PROT21-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (250, 4, 63, 'PROT63-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (251, 5, 17, 'PROT17-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (252, 1, 52, 'PROT52-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (253, 3, 3, 'PROT3-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (254, 2, 43, 'PROT43-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (255, 1, 66, 'PROT66-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (256, 5, 40, 'PROT40-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (257, 2, 52, 'PROT52-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (258, 5, 99, 'PROT99-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (259, 1, 95, 'PROT95-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (260, 5, 91, 'PROT91-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (261, 5, 98, 'PROT98-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (262, 4, 8, 'PROT8-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (263, 3, 68, 'PROT68-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (264, 4, 18, 'PROT18-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (265, 1, 45, 'PROT45-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (266, 4, 76, 'PROT76-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (267, 3, 62, 'PROT62-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (268, 1, 81, 'PROT81-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (269, 2, 49, 'PROT49-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (270, 3, 61, 'PROT61-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (271, 2, 87, 'PROT87-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (272, 2, 74, 'PROT74-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (273, 2, 49, 'PROT49-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (274, 5, 76, 'PROT76-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (275, 1, 83, 'PROT83-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (276, 1, 57, 'PROT57-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (277, 3, 27, 'PROT27-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (278, 1, 73, 'PROT73-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (279, 2, 32, 'PROT32-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (280, 1, 71, 'PROT71-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (281, 5, 74, 'PROT74-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (282, 1, 99, 'PROT99-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (283, 2, 35, 'PROT35-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (284, 4, 16, 'PROT16-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (285, 3, 96, 'PROT96-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (286, 1, 67, 'PROT67-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (287, 3, 71, 'PROT71-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (288, 1, 82, 'PROT82-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (289, 3, 64, 'PROT64-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (290, 3, 39, 'PROT39-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (291, 1, 6, 'PROT6-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (292, 3, 73, 'PROT73-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (293, 5, 24, 'PROT24-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (294, 4, 42, 'PROT42-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (295, 3, 50, 'PROT50-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (296, 5, 56, 'PROT56-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (297, 1, 44, 'PROT44-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (298, 4, 96, 'PROT96-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (299, 4, 38, 'PROT38-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (300, 3, 77, 'PROT77-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (301, 4, 53, 'PROT53-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (302, 3, 54, 'PROT54-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (303, 1, 55, 'PROT55-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (304, 5, 95, 'PROT95-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (305, 2, 1, 'PROT1-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (306, 1, 50, 'PROT50-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (307, 5, 42, 'PROT42-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (308, 3, 48, 'PROT48-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (309, 4, 98, 'PROT98-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (310, 3, 52, 'PROT52-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (311, 1, 93, 'PROT93-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (312, 4, 64, 'PROT64-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (313, 4, 95, 'PROT95-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (314, 1, 87, 'PROT87-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (315, 1, 12, 'PROT12-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (316, 5, 77, 'PROT77-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (317, 5, 31, 'PROT31-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (318, 5, 32, 'PROT32-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (319, 3, 6, 'PROT6-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (320, 4, 25, 'PROT25-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (321, 4, 44, 'PROT44-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (322, 2, 75, 'PROT75-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (323, 1, 60, 'PROT60-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (324, 4, 35, 'PROT35-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (325, 3, 4, 'PROT4-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (326, 4, 94, 'PROT94-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (327, 1, 20, 'PROT20-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (328, 5, 40, 'PROT40-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (329, 5, 42, 'PROT42-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (330, 5, 7, 'PROT7-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (331, 5, 88, 'PROT88-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (332, 5, 3, 'PROT3-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (333, 5, 50, 'PROT50-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (334, 3, 37, 'PROT37-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (335, 4, 26, 'PROT26-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (336, 5, 64, 'PROT64-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (337, 3, 40, 'PROT40-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (338, 4, 25, 'PROT25-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (339, 4, 93, 'PROT93-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (340, 3, 67, 'PROT67-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (341, 5, 22, 'PROT22-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (342, 2, 85, 'PROT85-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (343, 2, 21, 'PROT21-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (344, 5, 64, 'PROT64-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (345, 3, 35, 'PROT35-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (346, 5, 40, 'PROT40-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (347, 4, 49, 'PROT49-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (348, 4, 80, 'PROT80-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (349, 3, 10, 'PROT10-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (350, 4, 15, 'PROT15-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (351, 5, 68, 'PROT68-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (352, 2, 55, 'PROT55-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (353, 5, 93, 'PROT93-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (354, 5, 12, 'PROT12-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (355, 5, 68, 'PROT68-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (356, 3, 30, 'PROT30-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (357, 5, 85, 'PROT85-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (358, 1, 81, 'PROT81-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (359, 2, 52, 'PROT52-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (360, 4, 53, 'PROT53-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (361, 3, 38, 'PROT38-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (362, 5, 24, 'PROT24-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (363, 3, 92, 'PROT92-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (364, 3, 61, 'PROT61-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (365, 1, 67, 'PROT67-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (366, 5, 60, 'PROT60-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (367, 2, 56, 'PROT56-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (368, 2, 12, 'PROT12-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (369, 3, 30, 'PROT30-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (370, 2, 75, 'PROT75-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (371, 5, 7, 'PROT7-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (372, 2, 48, 'PROT48-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (373, 2, 51, 'PROT51-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (374, 2, 33, 'PROT33-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (375, 3, 97, 'PROT97-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (376, 4, 6, 'PROT6-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (377, 2, 66, 'PROT66-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (378, 1, 24, 'PROT24-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (379, 1, 18, 'PROT18-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (380, 1, 16, 'PROT16-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (381, 3, 24, 'PROT24-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (382, 3, 99, 'PROT99-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (383, 4, 9, 'PROT9-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (384, 1, 82, 'PROT82-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (385, 1, 12, 'PROT12-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (386, 2, 83, 'PROT83-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (387, 1, 30, 'PROT30-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (388, 4, 69, 'PROT69-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (389, 5, 90, 'PROT90-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (390, 1, 76, 'PROT76-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (391, 1, 19, 'PROT19-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (392, 2, 72, 'PROT72-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (393, 1, 61, 'PROT61-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (394, 2, 79, 'PROT79-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (395, 3, 32, 'PROT32-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (396, 3, 86, 'PROT86-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (397, 3, 11, 'PROT11-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (398, 5, 79, 'PROT79-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (399, 4, 33, 'PROT33-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (400, 2, 79, 'PROT79-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (401, 3, 33, 'PROT33-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (402, 5, 12, 'PROT12-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (403, 2, 82, 'PROT82-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (404, 5, 25, 'PROT25-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (405, 3, 17, 'PROT17-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (406, 1, 15, 'PROT15-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (407, 1, 73, 'PROT73-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (408, 3, 29, 'PROT29-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (409, 2, 29, 'PROT29-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (410, 4, 81, 'PROT81-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (411, 1, 12, 'PROT12-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (412, 5, 94, 'PROT94-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (413, 2, 68, 'PROT68-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (414, 3, 4, 'PROT4-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (415, 5, 17, 'PROT17-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (416, 5, 26, 'PROT26-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (417, 1, 93, 'PROT93-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (418, 3, 27, 'PROT27-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (419, 4, 35, 'PROT35-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (420, 4, 16, 'PROT16-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (421, 2, 100, 'PROT100-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (422, 4, 95, 'PROT95-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (423, 5, 95, 'PROT95-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (424, 3, 32, 'PROT32-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (425, 2, 36, 'PROT36-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (426, 4, 49, 'PROT49-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (427, 3, 37, 'PROT37-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (428, 2, 61, 'PROT61-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (429, 4, 35, 'PROT35-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (430, 2, 93, 'PROT93-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (431, 5, 16, 'PROT16-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (432, 3, 40, 'PROT40-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (433, 5, 73, 'PROT73-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (434, 1, 82, 'PROT82-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (435, 4, 25, 'PROT25-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (436, 5, 25, 'PROT25-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (437, 4, 52, 'PROT52-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (438, 4, 64, 'PROT64-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (439, 5, 64, 'PROT64-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (440, 3, 44, 'PROT44-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (441, 5, 74, 'PROT74-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (442, 2, 49, 'PROT49-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (443, 1, 39, 'PROT39-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (444, 4, 84, 'PROT84-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (445, 1, 14, 'PROT14-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (446, 4, 5, 'PROT5-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (447, 3, 7, 'PROT7-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (448, 2, 50, 'PROT50-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (449, 2, 92, 'PROT92-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (450, 3, 65, 'PROT65-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (451, 4, 68, 'PROT68-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (452, 5, 88, 'PROT88-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (453, 4, 57, 'PROT57-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (454, 3, 27, 'PROT27-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (455, 3, 43, 'PROT43-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (456, 4, 97, 'PROT97-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (457, 4, 6, 'PROT6-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (458, 5, 51, 'PROT51-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (459, 4, 1, 'PROT1-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (460, 3, 64, 'PROT64-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (461, 1, 41, 'PROT41-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (462, 1, 14, 'PROT14-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (463, 2, 32, 'PROT32-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (464, 5, 60, 'PROT60-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (465, 3, 72, 'PROT72-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (466, 1, 54, 'PROT54-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (467, 4, 41, 'PROT41-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (468, 5, 15, 'PROT15-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (469, 2, 53, 'PROT53-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (470, 2, 21, 'PROT21-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (471, 1, 18, 'PROT18-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (472, 1, 23, 'PROT23-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (473, 3, 16, 'PROT16-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (474, 2, 98, 'PROT98-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (475, 2, 70, 'PROT70-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (476, 5, 40, 'PROT40-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (477, 2, 35, 'PROT35-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (478, 4, 95, 'PROT95-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (479, 3, 50, 'PROT50-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (480, 1, 32, 'PROT32-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (481, 3, 51, 'PROT51-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (482, 1, 95, 'PROT95-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (483, 4, 64, 'PROT64-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (484, 4, 92, 'PROT92-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (485, 2, 9, 'PROT9-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (486, 2, 56, 'PROT56-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (487, 5, 36, 'PROT36-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (488, 4, 45, 'PROT45-4');
+insert into protein_batch (id, batch_num, parent_id, name) values (489, 3, 10, 'PROT10-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (490, 3, 46, 'PROT46-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (491, 1, 88, 'PROT88-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (492, 2, 29, 'PROT29-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (493, 5, 31, 'PROT31-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (494, 3, 31, 'PROT31-3');
+insert into protein_batch (id, batch_num, parent_id, name) values (495, 2, 42, 'PROT42-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (496, 1, 20, 'PROT20-1');
+insert into protein_batch (id, batch_num, parent_id, name) values (497, 5, 73, 'PROT73-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (498, 5, 74, 'PROT74-5');
+insert into protein_batch (id, batch_num, parent_id, name) values (499, 2, 77, 'PROT77-2');
+insert into protein_batch (id, batch_num, parent_id, name) values (500, 4, 87, 'PROT87-4');
+
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (1, 'EXP1', '2022-06-14 03:13:38', 12, 161);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (2, 'EXP2', '2020-11-07 07:10:59', 23, 136);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (3, 'EXP3', '2020-09-20 16:06:51', 49, 27);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (4, 'EXP4', '2020-10-07 06:42:19', 80, 13);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (5, 'EXP5', '2022-04-02 04:02:50', 49, 188);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (6, 'EXP6', '2021-11-18 01:12:52', 82, 463);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (7, 'EXP7', '2021-10-17 00:05:20', 15, 32);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (8, 'EXP8', '2021-04-04 03:42:56', 45, 128);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (9, 'EXP9', '2022-03-07 01:06:38', 31, 147);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (10, 'EXP10', '2020-06-01 23:06:05', 33, 192);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (11, 'EXP11', '2021-08-15 11:40:00', 9, 428);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (12, 'EXP12', '2022-09-21 22:14:16', 89, 47);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (13, 'EXP13', '2020-02-07 13:31:50', 11, 152);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (14, 'EXP14', '2021-07-23 20:01:14', 74, 262);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (15, 'EXP15', '2020-02-24 20:14:28', 60, 378);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (16, 'EXP16', '2020-04-10 06:01:13', 82, 189);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (17, 'EXP17', '2021-06-24 19:44:52', 88, 77);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (18, 'EXP18', '2021-06-08 00:58:10', 38, 414);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (19, 'EXP19', '2022-05-07 01:21:20', 39, 471);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (20, 'EXP20', '2022-07-01 03:58:37', 9, 132);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (21, 'EXP21', '2020-09-11 12:01:55', 81, 390);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (22, 'EXP22', '2021-10-25 20:52:44', 97, 402);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (23, 'EXP23', '2020-08-14 20:33:27', 93, 35);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (24, 'EXP24', '2020-05-30 15:03:15', 63, 424);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (25, 'EXP25', '2022-06-14 15:23:41', 15, 155);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (26, 'EXP26', '2020-05-10 13:08:41', 97, 320);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (27, 'EXP27', '2022-06-29 10:21:22', 61, 321);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (28, 'EXP28', '2022-03-16 12:42:59', 22, 247);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (29, 'EXP29', '2020-08-09 18:09:17', 23, 278);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (30, 'EXP30', '2021-04-17 12:29:20', 58, 356);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (31, 'EXP31', '2022-10-24 04:10:03', 60, 181);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (32, 'EXP32', '2022-09-25 22:43:26', 40, 241);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (33, 'EXP33', '2022-03-03 10:51:40', 51, 297);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (34, 'EXP34', '2022-06-08 10:46:18', 41, 371);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (35, 'EXP35', '2020-02-05 12:52:04', 93, 191);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (36, 'EXP36', '2020-11-10 11:25:03', 91, 17);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (37, 'EXP37', '2022-10-04 12:27:02', 1, 434);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (38, 'EXP38', '2022-02-19 20:21:40', 28, 412);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (39, 'EXP39', '2020-04-25 00:48:39', 9, 241);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (40, 'EXP40', '2022-05-20 20:07:29', 43, 217);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (41, 'EXP41', '2021-08-09 17:06:07', 26, 350);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (42, 'EXP42', '2021-05-15 06:26:06', 77, 46);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (43, 'EXP43', '2020-06-02 08:55:05', 74, 417);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (44, 'EXP44', '2020-08-16 06:05:35', 17, 497);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (45, 'EXP45', '2022-01-01 06:21:02', 18, 464);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (46, 'EXP46', '2022-10-03 21:15:36', 68, 265);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (47, 'EXP47', '2021-11-29 06:12:23', 83, 492);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (48, 'EXP48', '2022-09-28 07:32:16', 67, 125);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (49, 'EXP49', '2022-01-15 07:59:38', 48, 388);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (50, 'EXP50', '2022-02-03 15:05:03', 9, 124);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (51, 'EXP51', '2020-05-17 09:49:18', 54, 250);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (52, 'EXP52', '2020-11-30 00:02:42', 68, 386);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (53, 'EXP53', '2020-06-20 16:53:21', 10, 309);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (54, 'EXP54', '2020-12-02 17:24:06', 41, 249);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (55, 'EXP55', '2020-02-25 08:46:41', 56, 229);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (56, 'EXP56', '2022-03-08 20:37:53', 92, 257);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (57, 'EXP57', '2021-02-28 14:31:56', 6, 354);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (58, 'EXP58', '2021-09-30 07:49:05', 12, 447);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (59, 'EXP59', '2020-09-14 21:08:15', 60, 271);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (60, 'EXP60', '2022-05-24 08:46:52', 22, 97);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (61, 'EXP61', '2020-05-18 16:42:15', 28, 162);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (62, 'EXP62', '2021-01-06 09:06:43', 74, 101);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (63, 'EXP63', '2020-11-07 08:30:24', 92, 457);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (64, 'EXP64', '2022-02-05 14:00:49', 14, 180);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (65, 'EXP65', '2020-10-27 03:13:57', 2, 47);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (66, 'EXP66', '2022-10-11 02:31:05', 48, 479);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (67, 'EXP67', '2020-05-28 09:28:46', 45, 233);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (68, 'EXP68', '2022-04-07 21:53:02', 3, 189);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (69, 'EXP69', '2022-05-30 01:49:28', 12, 215);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (70, 'EXP70', '2022-02-08 08:27:29', 11, 188);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (71, 'EXP71', '2020-08-02 15:08:00', 9, 78);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (72, 'EXP72', '2020-03-17 10:46:24', 62, 269);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (73, 'EXP73', '2020-05-05 22:09:03', 17, 273);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (74, 'EXP74', '2021-12-15 16:32:04', 54, 454);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (75, 'EXP75', '2022-06-20 15:00:28', 87, 285);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (76, 'EXP76', '2021-06-01 14:13:20', 22, 154);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (77, 'EXP77', '2020-06-16 20:21:13', 7, 483);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (78, 'EXP78', '2020-05-25 22:24:10', 58, 496);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (79, 'EXP79', '2021-11-26 21:45:57', 62, 459);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (80, 'EXP80', '2020-03-04 21:03:36', 15, 281);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (81, 'EXP81', '2022-11-08 02:25:01', 10, 69);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (82, 'EXP82', '2021-12-22 18:25:09', 61, 75);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (83, 'EXP83', '2022-06-09 08:57:14', 1, 228);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (84, 'EXP84', '2020-02-09 10:14:52', 77, 415);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (85, 'EXP85', '2020-04-13 12:28:47', 46, 382);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (86, 'EXP86', '2020-11-13 11:33:49', 56, 214);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (87, 'EXP87', '2022-11-29 08:14:09', 27, 434);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (88, 'EXP88', '2020-07-02 23:40:57', 32, 343);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (89, 'EXP89', '2020-07-29 14:54:52', 74, 169);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (90, 'EXP90', '2022-06-19 12:06:21', 84, 264);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (91, 'EXP91', '2020-05-12 08:15:15', 61, 479);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (92, 'EXP92', '2021-03-12 13:28:58', 81, 326);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (93, 'EXP93', '2020-07-20 12:27:28', 27, 245);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (94, 'EXP94', '2020-10-24 18:25:08', 44, 484);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (95, 'EXP95', '2021-09-20 08:02:04', 24, 274);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (96, 'EXP96', '2021-12-31 04:09:38', 22, 327);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (97, 'EXP97', '2020-12-24 17:11:00', 13, 379);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (98, 'EXP98', '2020-02-09 09:10:02', 78, 388);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (99, 'EXP99', '2022-01-19 11:57:50', 1, 388);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (100, 'EXP100', '2020-01-31 07:20:17', 98, 28);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (101, 'EXP101', '2021-05-13 14:40:27', 83, 153);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (102, 'EXP102', '2021-10-02 18:58:39', 89, 431);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (103, 'EXP103', '2020-09-25 06:21:53', 64, 366);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (104, 'EXP104', '2020-10-03 02:30:19', 2, 202);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (105, 'EXP105', '2020-11-29 04:13:35', 21, 432);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (106, 'EXP106', '2020-02-14 18:33:48', 57, 206);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (107, 'EXP107', '2021-12-23 17:01:13', 16, 380);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (108, 'EXP108', '2020-07-20 10:16:42', 97, 124);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (109, 'EXP109', '2021-10-13 06:10:40', 14, 320);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (110, 'EXP110', '2020-10-15 15:48:37', 38, 448);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (111, 'EXP111', '2022-01-02 08:28:16', 35, 440);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (112, 'EXP112', '2021-12-26 18:05:13', 63, 21);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (113, 'EXP113', '2021-04-27 18:27:11', 42, 238);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (114, 'EXP114', '2020-01-08 16:50:03', 97, 242);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (115, 'EXP115', '2020-02-21 22:34:36', 72, 114);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (116, 'EXP116', '2021-09-03 00:58:58', 11, 334);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (117, 'EXP117', '2020-01-07 16:59:52', 28, 328);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (118, 'EXP118', '2021-04-08 23:11:48', 68, 344);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (119, 'EXP119', '2020-07-01 05:55:00', 95, 372);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (120, 'EXP120', '2022-07-11 22:17:57', 6, 229);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (121, 'EXP121', '2022-01-07 03:55:41', 48, 96);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (122, 'EXP122', '2022-04-15 01:02:45', 53, 27);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (123, 'EXP123', '2021-08-23 12:42:53', 73, 327);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (124, 'EXP124', '2022-03-12 20:48:12', 73, 280);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (125, 'EXP125', '2020-11-11 18:11:24', 70, 438);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (126, 'EXP126', '2020-05-31 04:59:28', 82, 222);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (127, 'EXP127', '2020-12-09 00:37:05', 43, 433);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (128, 'EXP128', '2022-10-08 00:37:06', 24, 177);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (129, 'EXP129', '2021-06-03 07:58:44', 13, 305);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (130, 'EXP130', '2021-08-26 16:56:06', 66, 215);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (131, 'EXP131', '2020-06-08 23:37:04', 25, 13);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (132, 'EXP132', '2022-04-23 13:28:11', 9, 211);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (133, 'EXP133', '2022-09-08 11:47:16', 1, 188);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (134, 'EXP134', '2020-12-19 18:14:07', 47, 244);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (135, 'EXP135', '2021-01-04 03:25:28', 28, 298);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (136, 'EXP136', '2021-10-23 23:27:46', 98, 449);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (137, 'EXP137', '2021-01-30 00:54:53', 30, 244);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (138, 'EXP138', '2021-06-19 20:59:48', 42, 465);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (139, 'EXP139', '2021-11-22 09:25:11', 1, 471);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (140, 'EXP140', '2020-03-11 05:51:25', 24, 345);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (141, 'EXP141', '2020-04-30 10:41:29', 8, 457);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (142, 'EXP142', '2022-08-02 23:21:53', 52, 398);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (143, 'EXP143', '2021-05-12 13:00:35', 91, 416);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (144, 'EXP144', '2020-10-17 10:27:46', 51, 132);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (145, 'EXP145', '2021-10-29 11:18:23', 70, 386);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (146, 'EXP146', '2022-05-07 03:02:41', 68, 348);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (147, 'EXP147', '2021-08-06 10:34:44', 64, 179);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (148, 'EXP148', '2021-06-04 01:05:01', 19, 251);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (149, 'EXP149', '2021-10-03 00:48:16', 81, 266);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (150, 'EXP150', '2022-06-24 00:24:17', 93, 299);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (151, 'EXP151', '2020-09-12 05:45:51', 65, 252);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (152, 'EXP152', '2020-10-28 02:19:13', 53, 269);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (153, 'EXP153', '2021-01-02 03:23:53', 85, 198);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (154, 'EXP154', '2020-10-22 05:00:26', 37, 396);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (155, 'EXP155', '2021-03-04 02:33:32', 55, 210);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (156, 'EXP156', '2021-09-04 03:33:49', 99, 333);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (157, 'EXP157', '2020-03-30 05:39:36', 5, 345);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (158, 'EXP158', '2021-11-15 18:43:23', 52, 367);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (159, 'EXP159', '2022-03-17 06:30:13', 58, 334);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (160, 'EXP160', '2021-06-19 20:06:38', 59, 306);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (161, 'EXP161', '2020-02-07 15:35:41', 30, 395);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (162, 'EXP162', '2021-05-25 16:36:55', 87, 204);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (163, 'EXP163', '2022-09-02 09:46:12', 20, 229);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (164, 'EXP164', '2020-07-23 13:28:24', 57, 78);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (165, 'EXP165', '2022-10-08 10:41:48', 65, 479);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (166, 'EXP166', '2020-04-15 11:15:51', 46, 99);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (167, 'EXP167', '2020-05-06 14:25:38', 79, 120);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (168, 'EXP168', '2020-05-13 17:46:45', 27, 136);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (169, 'EXP169', '2020-04-20 15:37:38', 56, 399);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (170, 'EXP170', '2020-04-12 03:28:04', 94, 320);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (171, 'EXP171', '2021-03-19 17:15:04', 35, 98);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (172, 'EXP172', '2021-07-16 16:14:21', 64, 54);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (173, 'EXP173', '2021-06-04 13:01:14', 35, 240);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (174, 'EXP174', '2021-01-26 17:58:38', 37, 343);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (175, 'EXP175', '2020-10-16 04:00:27', 16, 356);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (176, 'EXP176', '2021-10-24 14:10:25', 94, 303);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (177, 'EXP177', '2020-06-11 09:48:13', 60, 385);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (178, 'EXP178', '2021-08-14 02:18:46', 69, 451);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (179, 'EXP179', '2022-02-12 21:13:55', 49, 482);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (180, 'EXP180', '2021-03-16 01:38:17', 83, 72);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (181, 'EXP181', '2022-01-04 21:08:39', 49, 146);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (182, 'EXP182', '2021-03-26 13:56:23', 53, 166);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (183, 'EXP183', '2020-07-06 06:44:22', 92, 324);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (184, 'EXP184', '2022-08-25 04:20:34', 91, 333);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (185, 'EXP185', '2022-11-16 00:53:35', 13, 462);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (186, 'EXP186', '2020-07-14 02:50:26', 95, 45);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (187, 'EXP187', '2022-08-09 16:01:19', 8, 76);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (188, 'EXP188', '2021-07-14 02:51:28', 60, 133);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (189, 'EXP189', '2021-08-03 00:06:56', 38, 11);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (190, 'EXP190', '2020-03-09 02:44:50', 65, 422);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (191, 'EXP191', '2022-02-24 17:28:14', 27, 57);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (192, 'EXP192', '2022-12-08 02:50:26', 17, 302);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (193, 'EXP193', '2022-03-04 01:33:30', 2, 288);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (194, 'EXP194', '2020-10-26 12:03:50', 85, 48);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (195, 'EXP195', '2020-04-21 11:28:08', 6, 201);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (196, 'EXP196', '2022-08-22 17:28:54', 1, 102);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (197, 'EXP197', '2022-08-11 05:39:59', 62, 237);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (198, 'EXP198', '2021-11-03 22:57:55', 8, 51);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (199, 'EXP199', '2021-09-21 04:41:59', 53, 108);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (200, 'EXP200', '2022-02-12 20:10:17', 11, 264);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (201, 'EXP201', '2021-03-22 03:19:16', 32, 428);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (202, 'EXP202', '2021-06-10 14:30:48', 41, 419);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (203, 'EXP203', '2021-08-17 01:08:00', 51, 404);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (204, 'EXP204', '2022-05-28 05:18:45', 69, 151);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (205, 'EXP205', '2020-09-27 02:15:46', 46, 186);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (206, 'EXP206', '2022-05-10 22:38:01', 59, 51);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (207, 'EXP207', '2021-07-13 23:49:45', 13, 262);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (208, 'EXP208', '2022-06-10 04:32:09', 100, 403);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (209, 'EXP209', '2022-11-02 10:52:57', 52, 465);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (210, 'EXP210', '2020-02-03 01:04:53', 84, 298);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (211, 'EXP211', '2020-10-26 04:01:29', 16, 443);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (212, 'EXP212', '2020-04-19 01:14:36', 88, 446);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (213, 'EXP213', '2020-04-04 18:40:02', 59, 248);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (214, 'EXP214', '2020-07-17 10:09:29', 4, 488);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (215, 'EXP215', '2021-03-28 01:17:25', 93, 88);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (216, 'EXP216', '2021-05-22 06:18:01', 6, 374);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (217, 'EXP217', '2022-09-16 03:23:58', 95, 65);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (218, 'EXP218', '2022-06-12 22:26:22', 40, 450);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (219, 'EXP219', '2021-09-20 14:43:55', 53, 420);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (220, 'EXP220', '2020-10-02 11:34:38', 33, 404);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (221, 'EXP221', '2021-02-25 19:17:57', 16, 43);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (222, 'EXP222', '2020-09-05 05:00:00', 55, 400);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (223, 'EXP223', '2021-01-04 07:19:47', 5, 284);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (224, 'EXP224', '2022-02-10 08:41:58', 66, 262);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (225, 'EXP225', '2022-09-21 09:42:28', 57, 467);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (226, 'EXP226', '2022-04-02 03:19:55', 20, 6);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (227, 'EXP227', '2022-06-25 02:45:23', 59, 275);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (228, 'EXP228', '2022-11-29 12:51:39', 3, 453);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (229, 'EXP229', '2021-07-05 17:03:04', 94, 52);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (230, 'EXP230', '2020-08-12 22:11:29', 43, 383);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (231, 'EXP231', '2022-10-23 20:10:40', 75, 368);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (232, 'EXP232', '2021-01-17 00:04:05', 60, 111);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (233, 'EXP233', '2021-07-09 22:36:54', 87, 499);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (234, 'EXP234', '2020-09-02 06:46:18', 45, 415);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (235, 'EXP235', '2022-10-05 13:48:56', 10, 369);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (236, 'EXP236', '2020-08-30 12:58:02', 55, 208);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (237, 'EXP237', '2021-05-10 18:02:49', 21, 139);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (238, 'EXP238', '2020-07-14 17:55:35', 2, 210);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (239, 'EXP239', '2020-08-08 02:56:47', 8, 194);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (240, 'EXP240', '2022-01-10 01:09:47', 29, 259);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (241, 'EXP241', '2022-07-27 05:10:37', 97, 342);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (242, 'EXP242', '2021-05-10 12:52:19', 34, 150);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (243, 'EXP243', '2021-10-12 11:12:32', 23, 388);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (244, 'EXP244', '2021-02-22 03:00:37', 46, 141);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (245, 'EXP245', '2021-01-13 12:27:31', 69, 444);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (246, 'EXP246', '2020-12-24 15:12:57', 15, 21);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (247, 'EXP247', '2020-06-19 08:47:22', 73, 496);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (248, 'EXP248', '2021-03-13 02:30:50', 48, 122);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (249, 'EXP249', '2020-01-12 14:27:48', 7, 434);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (250, 'EXP250', '2021-01-31 19:19:01', 92, 464);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (251, 'EXP251', '2020-10-12 15:08:22', 30, 183);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (252, 'EXP252', '2020-11-21 04:55:09', 94, 302);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (253, 'EXP253', '2020-10-15 08:22:27', 6, 22);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (254, 'EXP254', '2020-07-24 00:52:49', 33, 180);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (255, 'EXP255', '2020-08-08 01:49:18', 60, 460);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (256, 'EXP256', '2020-09-26 23:42:11', 70, 229);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (257, 'EXP257', '2021-08-13 22:33:29', 59, 208);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (258, 'EXP258', '2022-01-11 06:56:51', 94, 326);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (259, 'EXP259', '2021-12-15 17:49:00', 21, 207);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (260, 'EXP260', '2022-05-25 05:20:40', 52, 137);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (261, 'EXP261', '2022-02-03 16:52:39', 76, 237);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (262, 'EXP262', '2021-07-31 01:50:01', 67, 155);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (263, 'EXP263', '2022-09-10 14:23:08', 13, 244);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (264, 'EXP264', '2021-07-20 02:16:23', 44, 487);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (265, 'EXP265', '2022-09-02 23:35:07', 3, 170);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (266, 'EXP266', '2021-04-25 07:54:04', 63, 351);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (267, 'EXP267', '2022-03-10 23:13:57', 100, 162);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (268, 'EXP268', '2021-07-04 22:33:29', 7, 115);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (269, 'EXP269', '2020-09-17 18:19:08', 32, 155);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (270, 'EXP270', '2020-07-14 17:01:38', 69, 95);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (271, 'EXP271', '2021-05-01 18:19:21', 84, 68);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (272, 'EXP272', '2020-07-03 04:35:54', 36, 460);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (273, 'EXP273', '2021-05-25 07:14:45', 90, 349);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (274, 'EXP274', '2021-07-21 07:34:12', 47, 334);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (275, 'EXP275', '2020-10-17 16:52:50', 99, 227);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (276, 'EXP276', '2022-03-29 10:35:05', 53, 243);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (277, 'EXP277', '2020-06-18 08:35:30', 11, 32);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (278, 'EXP278', '2022-10-06 03:23:14', 47, 483);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (279, 'EXP279', '2020-01-16 10:07:16', 8, 409);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (280, 'EXP280', '2020-10-30 14:23:20', 98, 264);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (281, 'EXP281', '2022-08-15 04:22:31', 79, 319);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (282, 'EXP282', '2022-02-27 12:07:29', 32, 482);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (283, 'EXP283', '2020-06-18 14:14:46', 22, 413);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (284, 'EXP284', '2020-03-22 15:25:45', 46, 386);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (285, 'EXP285', '2022-08-12 05:04:40', 59, 183);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (286, 'EXP286', '2022-03-17 08:46:14', 60, 374);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (287, 'EXP287', '2022-08-22 01:17:36', 95, 73);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (288, 'EXP288', '2021-05-23 02:33:42', 39, 75);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (289, 'EXP289', '2020-10-25 13:30:42', 40, 343);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (290, 'EXP290', '2020-04-18 20:15:08', 38, 286);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (291, 'EXP291', '2020-10-22 07:08:39', 40, 193);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (292, 'EXP292', '2020-11-02 07:40:48', 54, 154);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (293, 'EXP293', '2022-07-21 20:07:02', 25, 276);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (294, 'EXP294', '2022-08-18 08:40:15', 41, 496);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (295, 'EXP295', '2022-10-31 17:31:48', 82, 195);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (296, 'EXP296', '2022-04-05 16:58:30', 61, 16);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (297, 'EXP297', '2021-01-16 03:51:42', 81, 227);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (298, 'EXP298', '2020-11-08 18:24:07', 50, 239);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (299, 'EXP299', '2020-05-20 10:40:00', 80, 215);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (300, 'EXP300', '2020-08-02 12:05:19', 77, 103);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (301, 'EXP301', '2020-04-02 07:01:18', 99, 363);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (302, 'EXP302', '2020-10-20 03:09:28', 73, 90);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (303, 'EXP303', '2022-09-29 19:54:48', 93, 362);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (304, 'EXP304', '2020-06-23 23:34:43', 42, 252);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (305, 'EXP305', '2020-03-01 02:53:35', 30, 125);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (306, 'EXP306', '2021-06-25 05:10:34', 43, 189);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (307, 'EXP307', '2020-03-03 03:32:06', 95, 467);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (308, 'EXP308', '2021-04-22 05:05:59', 88, 497);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (309, 'EXP309', '2021-02-18 02:05:41', 24, 294);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (310, 'EXP310', '2021-12-15 14:13:04', 77, 309);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (311, 'EXP311', '2020-08-27 07:57:31', 95, 229);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (312, 'EXP312', '2021-02-08 08:54:07', 6, 286);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (313, 'EXP313', '2021-08-29 09:40:55', 11, 237);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (314, 'EXP314', '2020-11-04 02:43:55', 9, 69);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (315, 'EXP315', '2021-03-22 01:59:01', 79, 99);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (316, 'EXP316', '2021-08-02 11:26:22', 46, 31);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (317, 'EXP317', '2022-04-08 00:59:14', 15, 422);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (318, 'EXP318', '2020-12-01 08:08:32', 6, 38);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (319, 'EXP319', '2021-01-13 20:26:52', 94, 81);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (320, 'EXP320', '2021-05-11 14:57:13', 10, 237);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (321, 'EXP321', '2022-01-30 07:56:16', 5, 252);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (322, 'EXP322', '2022-02-14 17:09:44', 41, 34);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (323, 'EXP323', '2021-08-14 07:35:55', 89, 368);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (324, 'EXP324', '2020-03-07 17:05:05', 16, 458);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (325, 'EXP325', '2022-07-21 05:15:53', 53, 294);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (326, 'EXP326', '2021-11-03 09:47:56', 37, 290);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (327, 'EXP327', '2022-09-12 19:53:58', 58, 244);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (328, 'EXP328', '2022-04-18 03:11:53', 72, 92);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (329, 'EXP329', '2020-03-19 05:16:06', 81, 468);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (330, 'EXP330', '2022-06-05 10:47:19', 78, 369);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (331, 'EXP331', '2021-10-13 17:49:46', 77, 157);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (332, 'EXP332', '2021-02-26 03:02:34', 57, 348);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (333, 'EXP333', '2021-12-06 17:22:09', 41, 163);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (334, 'EXP334', '2022-06-08 03:38:01', 25, 253);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (335, 'EXP335', '2020-02-01 07:25:35', 12, 243);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (336, 'EXP336', '2020-09-13 11:36:13', 1, 265);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (337, 'EXP337', '2021-10-01 01:28:35', 44, 151);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (338, 'EXP338', '2022-09-24 04:04:50', 13, 357);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (339, 'EXP339', '2021-12-09 20:30:14', 60, 185);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (340, 'EXP340', '2022-06-01 22:11:46', 61, 86);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (341, 'EXP341', '2021-01-19 11:01:43', 86, 40);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (342, 'EXP342', '2021-02-23 22:35:13', 97, 12);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (343, 'EXP343', '2022-11-08 15:37:09', 58, 120);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (344, 'EXP344', '2021-10-31 07:36:15', 63, 2);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (345, 'EXP345', '2021-12-26 15:32:00', 40, 363);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (346, 'EXP346', '2022-08-21 02:35:45', 26, 242);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (347, 'EXP347', '2022-01-13 14:26:43', 9, 358);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (348, 'EXP348', '2021-12-24 08:26:25', 29, 309);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (349, 'EXP349', '2022-03-07 16:45:50', 77, 184);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (350, 'EXP350', '2020-05-06 21:33:10', 11, 462);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (351, 'EXP351', '2021-11-05 04:42:36', 88, 172);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (352, 'EXP352', '2021-03-23 02:18:13', 43, 239);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (353, 'EXP353', '2022-07-07 10:32:32', 76, 74);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (354, 'EXP354', '2020-06-17 10:47:07', 21, 349);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (355, 'EXP355', '2021-10-22 23:10:54', 14, 357);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (356, 'EXP356', '2020-01-16 11:41:25', 1, 414);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (357, 'EXP357', '2020-09-11 19:24:25', 85, 124);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (358, 'EXP358', '2021-08-09 06:03:16', 42, 267);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (359, 'EXP359', '2020-08-21 05:48:00', 35, 478);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (360, 'EXP360', '2022-01-26 17:18:57', 52, 213);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (361, 'EXP361', '2020-06-05 06:00:24', 75, 350);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (362, 'EXP362', '2021-07-20 12:57:53', 90, 404);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (363, 'EXP363', '2022-09-26 16:15:20', 14, 413);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (364, 'EXP364', '2021-02-28 05:04:45', 83, 379);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (365, 'EXP365', '2022-04-22 10:07:58', 95, 125);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (366, 'EXP366', '2021-07-12 07:00:29', 21, 338);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (367, 'EXP367', '2022-09-05 06:37:59', 99, 224);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (368, 'EXP368', '2021-04-07 22:14:55', 81, 224);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (369, 'EXP369', '2021-04-16 09:36:41', 80, 219);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (370, 'EXP370', '2022-07-15 22:37:57', 46, 14);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (371, 'EXP371', '2020-04-03 14:33:31', 10, 64);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (372, 'EXP372', '2021-12-10 18:20:26', 56, 328);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (373, 'EXP373', '2022-05-12 21:56:01', 53, 169);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (374, 'EXP374', '2020-01-11 00:18:00', 30, 419);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (375, 'EXP375', '2020-04-25 02:34:27', 22, 272);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (376, 'EXP376', '2020-07-19 15:46:28', 24, 283);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (377, 'EXP377', '2022-07-31 03:09:33', 83, 112);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (378, 'EXP378', '2022-10-16 11:03:20', 11, 127);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (379, 'EXP379', '2022-08-13 01:04:24', 40, 192);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (380, 'EXP380', '2020-12-01 03:48:34', 36, 33);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (381, 'EXP381', '2020-05-08 14:47:34', 25, 121);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (382, 'EXP382', '2020-02-12 11:12:34', 74, 238);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (383, 'EXP383', '2022-09-21 11:32:08', 3, 257);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (384, 'EXP384', '2021-07-11 04:42:00', 16, 293);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (385, 'EXP385', '2020-05-03 08:33:59', 49, 23);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (386, 'EXP386', '2021-09-20 22:20:31', 77, 335);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (387, 'EXP387', '2021-03-24 12:00:02', 24, 182);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (388, 'EXP388', '2020-01-22 16:47:50', 87, 76);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (389, 'EXP389', '2022-02-18 02:44:27', 35, 365);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (390, 'EXP390', '2021-12-24 02:15:51', 17, 257);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (391, 'EXP391', '2020-03-09 03:04:21', 48, 297);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (392, 'EXP392', '2022-05-17 18:32:29', 99, 94);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (393, 'EXP393', '2022-06-25 05:48:31', 47, 98);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (394, 'EXP394', '2021-11-06 18:54:20', 91, 425);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (395, 'EXP395', '2022-12-05 17:00:57', 60, 229);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (396, 'EXP396', '2020-04-01 16:43:18', 52, 443);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (397, 'EXP397', '2021-12-11 13:27:05', 37, 266);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (398, 'EXP398', '2022-11-08 07:10:41', 44, 41);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (399, 'EXP399', '2022-09-18 07:04:32', 59, 207);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (400, 'EXP400', '2022-09-12 14:29:08', 48, 337);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (401, 'EXP401', '2021-12-08 17:33:01', 99, 41);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (402, 'EXP402', '2022-08-28 06:30:36', 51, 290);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (403, 'EXP403', '2022-05-27 08:56:35', 91, 128);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (404, 'EXP404', '2020-10-11 20:32:33', 16, 453);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (405, 'EXP405', '2020-07-26 03:43:16', 66, 186);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (406, 'EXP406', '2020-05-26 09:10:24', 97, 206);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (407, 'EXP407', '2021-01-14 00:01:10', 43, 216);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (408, 'EXP408', '2022-01-04 12:02:54', 33, 187);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (409, 'EXP409', '2022-12-08 09:45:34', 1, 251);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (410, 'EXP410', '2020-12-03 16:35:46', 87, 241);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (411, 'EXP411', '2021-03-13 01:05:39', 30, 229);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (412, 'EXP412', '2021-12-12 05:25:59', 83, 328);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (413, 'EXP413', '2020-03-02 15:58:51', 37, 78);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (414, 'EXP414', '2022-06-27 15:04:49', 36, 375);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (415, 'EXP415', '2020-12-07 07:05:20', 60, 490);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (416, 'EXP416', '2022-11-11 15:45:03', 65, 13);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (417, 'EXP417', '2022-05-05 02:28:48', 59, 280);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (418, 'EXP418', '2022-05-04 16:16:04', 11, 380);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (419, 'EXP419', '2020-01-04 16:36:09', 40, 448);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (420, 'EXP420', '2020-10-28 02:02:32', 84, 120);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (421, 'EXP421', '2022-05-05 07:12:19', 7, 229);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (422, 'EXP422', '2020-07-14 05:50:03', 52, 475);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (423, 'EXP423', '2022-04-26 05:03:07', 62, 68);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (424, 'EXP424', '2022-10-23 01:22:43', 78, 162);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (425, 'EXP425', '2022-10-06 04:53:33', 74, 161);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (426, 'EXP426', '2020-11-25 05:11:35', 76, 271);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (427, 'EXP427', '2020-04-02 17:57:07', 62, 183);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (428, 'EXP428', '2022-03-17 00:16:34', 81, 184);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (429, 'EXP429', '2020-04-14 22:46:46', 95, 160);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (430, 'EXP430', '2022-11-22 19:14:20', 71, 71);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (431, 'EXP431', '2022-08-11 22:57:37', 39, 6);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (432, 'EXP432', '2021-07-01 03:18:10', 98, 314);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (433, 'EXP433', '2020-04-05 02:08:38', 75, 297);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (434, 'EXP434', '2021-02-02 18:26:15', 32, 473);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (435, 'EXP435', '2021-01-29 10:25:58', 47, 39);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (436, 'EXP436', '2022-09-10 18:46:14', 43, 70);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (437, 'EXP437', '2021-12-02 17:09:42', 72, 80);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (438, 'EXP438', '2020-06-06 21:33:00', 42, 338);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (439, 'EXP439', '2022-09-04 15:20:04', 51, 378);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (440, 'EXP440', '2020-05-28 09:50:03', 50, 66);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (441, 'EXP441', '2020-11-08 03:11:17', 45, 418);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (442, 'EXP442', '2021-05-11 22:01:47', 36, 453);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (443, 'EXP443', '2020-02-25 09:33:09', 29, 70);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (444, 'EXP444', '2020-10-06 07:49:54', 54, 243);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (445, 'EXP445', '2022-12-05 17:44:41', 68, 497);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (446, 'EXP446', '2021-08-21 23:57:00', 20, 344);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (447, 'EXP447', '2021-06-25 18:48:09', 45, 49);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (448, 'EXP448', '2021-07-05 20:49:06', 64, 385);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (449, 'EXP449', '2020-05-30 16:13:44', 92, 31);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (450, 'EXP450', '2022-11-04 21:15:19', 77, 238);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (451, 'EXP451', '2020-10-04 07:45:05', 55, 178);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (452, 'EXP452', '2021-07-16 15:58:36', 37, 46);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (453, 'EXP453', '2022-01-15 05:11:26', 51, 431);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (454, 'EXP454', '2020-01-04 14:22:51', 23, 483);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (455, 'EXP455', '2021-07-31 22:02:17', 73, 444);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (456, 'EXP456', '2022-05-15 03:51:46', 89, 173);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (457, 'EXP457', '2021-09-13 01:45:07', 80, 72);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (458, 'EXP458', '2021-07-09 16:23:39', 26, 41);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (459, 'EXP459', '2021-06-02 20:54:07', 33, 384);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (460, 'EXP460', '2021-05-15 19:44:46', 97, 115);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (461, 'EXP461', '2021-12-10 19:02:39', 14, 217);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (462, 'EXP462', '2022-02-10 03:30:29', 43, 269);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (463, 'EXP463', '2022-02-06 01:06:21', 16, 311);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (464, 'EXP464', '2020-07-24 04:53:29', 45, 278);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (465, 'EXP465', '2020-06-13 09:23:31', 60, 228);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (466, 'EXP466', '2022-02-26 03:02:08', 87, 317);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (467, 'EXP467', '2020-04-09 21:56:49', 71, 463);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (468, 'EXP468', '2022-03-06 04:20:51', 52, 34);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (469, 'EXP469', '2020-05-11 06:42:06', 91, 288);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (470, 'EXP470', '2022-03-18 22:30:43', 56, 320);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (471, 'EXP471', '2020-12-03 10:06:50', 18, 261);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (472, 'EXP472', '2021-01-05 22:13:04', 95, 271);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (473, 'EXP473', '2021-12-24 11:24:47', 98, 342);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (474, 'EXP474', '2020-02-20 15:17:10', 3, 484);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (475, 'EXP475', '2021-08-08 20:04:48', 27, 355);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (476, 'EXP476', '2022-06-30 09:39:58', 86, 257);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (477, 'EXP477', '2020-12-21 04:03:05', 23, 22);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (478, 'EXP478', '2021-08-09 02:42:28', 63, 70);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (479, 'EXP479', '2020-05-01 20:16:37', 81, 413);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (480, 'EXP480', '2020-07-01 23:53:06', 86, 194);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (481, 'EXP481', '2021-06-29 04:10:30', 31, 489);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (482, 'EXP482', '2020-01-17 03:15:02', 58, 162);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (483, 'EXP483', '2021-12-22 19:28:52', 44, 475);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (484, 'EXP484', '2021-08-15 20:25:13', 46, 178);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (485, 'EXP485', '2020-02-25 21:46:00', 7, 158);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (486, 'EXP486', '2021-03-20 09:32:12', 69, 259);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (487, 'EXP487', '2020-08-16 20:36:14', 27, 387);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (488, 'EXP488', '2021-08-22 17:11:51', 14, 275);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (489, 'EXP489', '2021-03-12 23:40:44', 19, 60);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (490, 'EXP490', '2020-07-15 17:51:11', 65, 417);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (491, 'EXP491', '2021-03-21 14:05:47', 99, 404);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (492, 'EXP492', '2021-09-23 13:54:11', 13, 396);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (493, 'EXP493', '2020-05-11 00:19:14', 10, 71);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (494, 'EXP494', '2020-01-19 13:44:54', 81, 263);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (495, 'EXP495', '2020-09-02 08:09:12', 1, 482);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (496, 'EXP496', '2021-10-26 16:11:18', 23, 340);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (497, 'EXP497', '2022-02-09 09:05:19', 26, 395);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (498, 'EXP498', '2020-07-02 00:01:17', 21, 241);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (499, 'EXP499', '2020-11-18 18:42:13', 91, 90);
+insert into experiment (id, exp_num, date_created, creator_id, batch_id) values (500, 'EXP500', '2020-05-28 15:49:31', 7, 156);
+
+INSERT INTO cell_line (name, species, tissue)
+VALUES 
+('MB49', 'mouse', 'bladder'),
+('D54-Luc', 'human', 'brain'),
+('CAL 27', 'human', 'head and neck'),
+('Hepa 1-6', 'mouse', 'liver'),
+('A549', 'human', 'lung'),
+('R827', 'human', 'bladder'),
+('Polo 8-9', 'mouse', 'brain'),
+('BEM 54', 'human', 'liver'),
+('R543', 'mouse', 'head and neck'),
+('A998', 'mouse', 'lung')
+;
+
+
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (373, 4, 65.141, 75.596);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (125, 2, 64.523, 77.964);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (274, 2, 58.515, 72.878);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (225, 5, 61.973, 76.149);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (428, 1, 64.004, 76.955);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (118, 1, 68.704, 74.009);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (56, 1, 67.419, 73.801);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (371, 2, 60.742, 73.867);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (221, 2, 69.733, 74.7);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (485, 5, 67.589, 77.771);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (8, 4, 61.851, 78.614);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (122, 4, 66.296, 78.347);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (130, 1, 59.064, 77.323);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (49, 3, 66.273, 76.366);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (17, 4, 61.506, 70.895);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (133, 2, 68.164, 80.625);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (222, 3, 63.792, 73.667);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (75, 1, 65.143, 77.177);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (488, 1, 68.574, 74.77);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (136, 3, 67.726, 79.998);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (379, 4, 66.069, 77.33);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (232, 4, 64.572, 75.759);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (179, 1, 65.58, 73.773);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (492, 5, 65.961, 76.44);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (121, 2, 66.316, 74.701);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (420, 4, 65.4, 73.525);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (51, 4, 63.521, 73.215);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (61, 4, 59.742, 75.527);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (419, 2, 71.013, 78.212);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (7, 1, 69.745, 74.148);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (454, 1, 59.86, 66.919);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (368, 3, 67.669, 74.544);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (287, 2, 63.904, 76.235);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (327, 2, 60.815, 71.848);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (487, 5, 68.031, 81.32);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (355, 4, 65.758, 74.972);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (359, 3, 66.784, 75.055);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (28, 4, 66.748, 75.678);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (451, 5, 59.531, 76.329);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (145, 4, 64.437, 70.352);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (171, 2, 73.077, 77.096);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (126, 1, 71.414, 72.912);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (143, 2, 63.681, 77.349);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (294, 3, 63.845, 74.445);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (377, 5, 65.475, 77.431);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (342, 1, 70.981, 76.965);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (236, 1, 60.463, 72.31);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (27, 5, 64.574, 76.592);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (180, 2, 65.702, 79.089);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (318, 3, 60.943, 75.849);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (328, 3, 62.495, 73.599);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (223, 2, 60.636, 77.699);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (74, 2, 70.55, 79.019);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (89, 5, 66.161, 66.708);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (72, 2, 67.305, 72.674);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (193, 4, 68.9, 73.956);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (10, 1, 66.723, 78.849);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (228, 2, 67.228, 74.067);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (445, 3, 65.145, 74.634);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (461, 1, 68.892, 67.829);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (179, 5, 63.946, 72.557);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (385, 5, 67.308, 74.575);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (34, 1, 66.731, 77.27);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (345, 2, 63.627, 74.901);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (488, 5, 67.943, 71.897);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (108, 1, 69.096, 72.515);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (219, 1, 67.785, 77.668);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (135, 2, 62.317, 72.771);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (99, 1, 65.521, 72.265);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (383, 2, 66.678, 73.15);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (451, 2, 64.516, 74.208);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (231, 5, 71.578, 77.271);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (65, 2, 63.765, 75.679);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (385, 3, 67.915, 71.322);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (115, 1, 65.452, 78.054);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (425, 2, 69.735, 75.527);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (219, 4, 64.19, 77.065);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (201, 2, 64.109, 69.772);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (6, 4, 65.591, 77.505);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (64, 3, 67.343, 69.059);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (166, 5, 62.024, 75.782);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (244, 5, 65.479, 73.283);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (19, 2, 64.966, 79.279);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (455, 4, 63.764, 77.511);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (8, 3, 67.674, 76.861);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (138, 4, 69.13, 75.44);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (33, 3, 63.578, 74.518);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (437, 2, 63.31, 71.587);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (344, 4, 67.968, 80.082);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (15, 5, 62.962, 77.087);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (108, 3, 66.865, 74.118);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (167, 2, 68.518, 77.493);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (57, 3, 63.043, 75.944);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (458, 2, 60.637, 74.367);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (162, 5, 64.681, 73.864);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (168, 2, 63.762, 73.433);
+insert into thermostability (exp_id, trial_num, onset_temp, midpoint_temp) values (271, 4, 62.223, 75.938);
+
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (99, 3, 6.29, 20.353);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (197, 5, 5.378, 20.432);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (340, 3, 8.332, 23.275);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (165, 5, 4.517, 24.182);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (50, 4, 10.012, 18.255);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (378, 3, 10.105, 22.989);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (227, 4, 4.74, 18.742);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (250, 2, 9.433, 20.964);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (55, 2, 8.747, 13.845);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (279, 1, 11.238, 21.831);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (420, 1, 3.187, 21.838);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (194, 4, 7.46, 25.261);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (37, 5, 3.804, 15.953);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (292, 5, 7.166, 24.297);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (7, 2, 5.038, 21.138);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (302, 4, 8.563, 22.011);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (304, 3, 5.13, 22.91);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (59, 4, 1.67, 21.25);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (462, 4, 8.953, 19.022);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (380, 3, 12.238, 19.697);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (471, 2, 11.9, 21.588);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (329, 5, 4.522, 22.842);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (376, 1, 1.566, 15.824);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (489, 5, 6.203, 17.418);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (352, 2, 5.172, 18.59);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (290, 2, 5.504, 21.063);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (252, 2, 8.373, 23.38);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (193, 5, 11.299, 23.241);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (324, 1, 3.599, 19.054);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (42, 1, 10.042, 24.412);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (357, 1, -0.098, 17.74);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (62, 2, 8.162, 20.467);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (27, 4, 5.082, 18.442);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (463, 3, 3.697, 21.091);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (188, 1, 0.983, 20.191);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (391, 1, 6.183, 21.344);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (240, 4, 10.885, 25.026);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (352, 4, 8.911, 17.97);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (113, 3, 6.86, 20.799);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (458, 5, 9.322, 21.494);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (200, 5, 8.346, 20.894);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (418, 4, 4.392, 20.266);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (44, 2, 9.214, 22.004);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (266, 3, 1.056, 17.588);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (215, 4, 7.686, 19.006);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (65, 4, 8.421, 19.435);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (218, 1, 4.594, 16.48);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (49, 5, 8.061, 19.298);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (159, 3, 4.59, 15.813);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (417, 2, 0.979, 21.258);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (307, 5, 14.446, 20.324);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (254, 5, 0.856, 21.623);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (45, 1, 4.074, 18.452);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (337, 3, 6.931, 20.8);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (212, 3, 3.24, 24.72);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (199, 1, 9.022, 27.022);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (125, 2, 9.37, 17.615);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (59, 1, 6.819, 20.326);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (470, 4, 5.051, 22.297);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (69, 2, 8.221, 23.768);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (191, 5, 8.012, 16.691);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (274, 5, 7.353, 22.882);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (30, 3, 10.974, 17.218);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (56, 3, 6.441, 17.404);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (309, 2, 4.938, 23.437);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (309, 4, 7.751, 14.369);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (164, 1, 9.43, 19.069);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (78, 2, 8.592, 23.667);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (282, 3, 8.955, 22.251);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (33, 3, 1.636, 17.827);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (230, 2, 7.656, 22.84);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (223, 3, 9.834, 18.336);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (121, 2, 4.963, 17.329);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (39, 1, 7.832, 24.614);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (53, 2, 9.082, 16.543);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (475, 4, 6.594, 17.639);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (416, 4, 8.971, 19.786);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (400, 2, 7.956, 14.329);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (153, 2, 10.315, 20.988);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (70, 4, 7.933, 29.199);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (304, 2, 6.137, 19.14);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (432, 5, 7.386, 16.851);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (462, 5, 7.491, 17.65);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (175, 1, 10.527, 18.564);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (445, 4, 9.807, 16.368);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (258, 4, 10.832, 17.954);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (348, 2, 7.388, 19.713);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (355, 2, 8.68, 24.889);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (239, 2, 5.862, 25.715);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (312, 4, 8.51, 20.108);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (465, 2, 8.398, 19.276);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (27, 2, 9.57, 25.927);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (354, 5, 12.298, 18.479);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (201, 2, 5.084, 17.961);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (106, 1, 3.353, 13.908);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (173, 4, 4.748, 18.298);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (467, 2, 0.916, 21.055);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (327, 1, 5.918, 18.55);
+insert into purity (exp_id, trial_num, purified_amount, purified_yield) values (178, 4, 9.32, 18.312);
+
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (281, 1, 6.3);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (213, 2, 8.295);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (126, 1, 9.503);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (464, 1, 9.453);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (60, 5, 6.151);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (29, 3, 9.376);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (399, 5, 9.147);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (487, 1, 4.851);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (95, 4, 6.659);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (191, 4, 4.652);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (342, 4, 7.575);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (82, 3, 5.374);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (178, 5, 4.962);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (113, 1, 7.156);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (119, 4, 9.972);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (429, 4, 5.509);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (289, 5, 7.688);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (468, 1, 7.224);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (39, 4, 12.931);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (222, 2, 9.314);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (35, 5, 8.56);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (79, 1, 3.609);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (474, 5, 4.958);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (117, 4, 5.636);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (496, 3, 5.697);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (432, 4, 6.886);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (92, 1, 7.369);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (89, 1, 10.804);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (100, 2, 7.554);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (185, 5, 8.3);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (170, 5, 6.018);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (481, 2, 8.145);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (389, 5, 6.043);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (448, 2, 7.04);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (7, 4, 7.805);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (63, 3, 7.517);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (203, 2, 10.081);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (377, 1, 5.013);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (151, 3, 8.207);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (492, 3, 9.562);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (88, 2, 4.843);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (179, 1, 9.701);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (342, 5, 6.126);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (318, 5, 10.424);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (470, 2, 9.738);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (375, 5, 10.026);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (333, 4, 6.487);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (392, 1, 8.165);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (224, 4, 6.087);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (233, 3, 4.727);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (339, 1, 4.2);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (432, 3, 7.752);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (346, 2, 5.663);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (25, 3, 6.877);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (111, 5, 8.53);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (230, 2, 6.999);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (218, 3, 7.19);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (328, 1, 7.443);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (144, 3, 4.575);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (192, 2, 8.847);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (75, 5, 8.166);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (420, 2, 4.676);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (358, 5, 5.776);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (204, 5, 10.069);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (466, 3, 10.736);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (115, 4, 7.74);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (482, 3, 9.705);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (105, 1, 8.05);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (119, 1, 6.069);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (197, 2, 8.798);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (88, 5, 6.652);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (17, 4, 6.676);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (254, 5, 8.779);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (418, 4, 5.078);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (402, 1, 7.315);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (475, 5, 3.943);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (415, 1, 7.716);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (476, 2, 7.924);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (485, 2, 8.685);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (274, 3, 4.972);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (207, 2, 9.207);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (289, 1, 8.425);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (269, 5, 8.842);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (81, 4, 4.723);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (425, 4, 6.436);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (322, 1, 8.008);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (33, 3, 7.03);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (90, 2, 5.164);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (499, 2, 10.41);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (378, 4, 2.293);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (237, 4, 7.971);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (316, 4, 6.486);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (17, 1, 10.007);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (376, 3, 5.799);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (110, 2, 5.686);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (20, 5, 6.179);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (494, 2, 1.166);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (298, 3, 5.023);
+insert into hydrophobicity (exp_id, trial_num, retention_time) values (313, 2, 8.358);
+
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (19, 4, 1.217, 0.328, 98.455);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (168, 4, 0.964, 0.836, 98.2);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (161, 2, 0.92, 0.54, 98.54);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (177, 1, 1.39, 0.323, 98.287);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (129, 3, 0.649, 0.48, 98.871);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (235, 1, 1.821, 0.524, 97.655);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (377, 1, 1.751, 0.647, 97.602);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (125, 5, 1.722, 0.076, 98.202);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (15, 3, 1.578, 0.535, 97.887);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (145, 5, 1.103, 0.113, 98.784);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (452, 4, 1.182, 0.218, 98.6);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (51, 4, 0.16, 0.087, 99.753);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (136, 4, 1.722, 0.719, 97.559);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (447, 3, 0.052, 0.422, 99.526);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (97, 5, 1.054, 0.99, 97.956);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (100, 4, 0.96, 0.51, 98.53);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (44, 4, 0.502, 0.358, 99.14);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (467, 2, 1.272, 0.546, 98.182);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (118, 5, 0.439, 0.3, 99.261);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (382, 5, 1.037, 0.689, 98.274);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (120, 3, 1.167, 0.348, 98.485);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (457, 1, 0.697, 0.103, 99.2);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (237, 2, 0.243, 0.686, 99.071);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (78, 3, 1.618, 0.656, 97.726);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (496, 3, 0.775, 0.535, 98.69);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (165, 1, 1.687, 0.269, 98.044);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (315, 2, 0.248, 0.153, 99.599);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (285, 5, 1.385, 0.474, 98.141);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (380, 5, 0.967, 0.154, 98.879);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (17, 4, 0.932, 0.24, 98.828);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (214, 3, 0.106, 0.54, 99.354);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (67, 2, 1.905, 0.764, 97.331);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (26, 1, 1.726, 0.08, 98.194);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (59, 4, 1.979, 0.158, 97.863);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (26, 4, 1.89, 0.221, 97.889);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (223, 5, 1.073, 0.004, 98.923);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (250, 5, 1.043, 0.178, 98.779);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (122, 3, 1.858, 0.522, 97.62);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (40, 3, 1.346, 0.722, 97.932);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (153, 5, 0.2, 0.09, 99.71);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (219, 4, 1.101, 0.172, 98.727);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (334, 4, 0.371, 0.28, 99.349);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (22, 1, 1.548, 0.052, 98.4);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (442, 3, 0.492, 0.366, 99.142);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (376, 2, 1.574, 0.722, 97.704);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (410, 5, 0.115, 0.363, 99.522);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (27, 3, 1.568, 0.255, 98.177);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (175, 5, 0.855, 0.32, 98.825);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (451, 5, 0.867, 0.108, 99.025);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (106, 2, 1.716, 0.359, 97.925);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (26, 3, 0.413, 0.636, 98.951);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (8, 5, 0.818, 0.43, 98.752);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (189, 5, 1.754, 0.22, 98.026);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (447, 4, 0.786, 0.789, 98.425);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (394, 2, 0.087, 0.346, 99.567);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (8, 4, 1.869, 0.99, 97.141);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (492, 5, 0.797, 0.523, 98.68);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (430, 1, 1.859, 0.154, 97.987);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (40, 2, 1.085, 0.106, 98.809);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (343, 1, 0.359, 0.159, 99.482);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (234, 4, 1.657, 0.589, 97.754);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (194, 3, 0.483, 0.906, 98.611);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (109, 3, 1.165, 0.34, 98.495);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (468, 2, 1.604, 0.12, 98.276);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (197, 1, 1.624, 0.06, 98.316);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (25, 3, 1.405, 0.585, 98.01);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (488, 5, 1.522, 0.081, 98.397);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (327, 5, 1.41, 0.809, 97.781);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (207, 2, 0.65, 0.954, 98.396);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (465, 1, 0.872, 0.717, 98.411);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (143, 1, 1.381, 0.059, 98.56);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (215, 1, 1.725, 0.933, 97.342);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (282, 1, 1.544, 0.086, 98.37);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (406, 3, 0.393, 0.314, 99.293);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (150, 1, 0.179, 0.227, 99.594);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (72, 1, 0.106, 0.686, 99.208);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (135, 4, 1.517, 0.681, 97.802);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (43, 5, 0.422, 0.681, 98.897);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (129, 5, 1.974, 0.142, 97.884);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (191, 4, 1.826, 0.119, 98.055);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (424, 1, 1.139, 0.424, 98.437);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (347, 2, 0.994, 0.968, 98.038);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (257, 4, 0.481, 0.538, 98.981);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (133, 1, 0.269, 0.634, 99.097);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (52, 4, 1.89, 0.286, 97.824);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (244, 4, 0.996, 0.233, 98.771);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (385, 3, 1.949, 0.278, 97.773);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (101, 5, 0.773, 0.973, 98.254);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (307, 5, 1.473, 0.55, 97.977);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (109, 1, 0.054, 0.968, 98.978);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (493, 2, 1.762, 0.051, 98.187);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (140, 2, 1.978, 0.173, 97.849);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (384, 2, 1.638, 0.958, 97.404);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (395, 5, 1.935, 0.829, 97.236);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (250, 2, 1.14, 0.592, 98.268);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (103, 4, 1.549, 0.673, 97.778);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (245, 1, 0.447, 0.071, 99.482);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (299, 3, 1.273, 0.735, 97.992);
+insert into size_analysis (exp_id, trial_num, percent_heavy, percent_light, percent_main) values (305, 5, 1.013, 0.377, 98.61);
+
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (172, 4, 28.258, 29.772, 41.97, 8.516);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (17, 2, 18.842, 29.952, 51.206, 7.979);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (220, 4, 21.689, 22.681, 55.63, 6.188);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (338, 2, 22.842, 22.964, 54.194, 8.467);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (145, 4, 20.404, 17.576, 62.02, 10.83);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (230, 3, 19.99, 16.421, 63.589, 2.491);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (171, 3, 21.435, 17.762, 60.803, 4.444);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (425, 1, 20.326, 16.036, 63.638, 7.878);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (323, 4, 24.018, 28.571, 47.411, 7.345);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (361, 4, 24.027, 24.554, 51.419, 7.665);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (180, 1, 19.192, 16.625, 64.183, 6.837);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (165, 5, 28.826, 25.908, 45.266, 6.441);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (347, 1, 17.593, 26.29, 56.117, 6.964);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (374, 3, 17.466, 28.633, 53.901, 7.538);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (282, 3, 18.552, 25.625, 55.823, 5.133);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (488, 1, 18.667, 21.508, 59.825, 6.776);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (21, 1, 17.007, 22.281, 60.712, 6.379);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (42, 4, 17.401, 25.234, 57.365, 5.859);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (152, 3, 22.966, 18.522, 58.512, 8.367);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (250, 5, 28.398, 17.112, 54.49, 2.784);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (450, 1, 29.817, 22.216, 47.967, 9.289);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (380, 5, 29.246, 21.741, 49.013, 9.127);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (117, 1, 15.679, 21.71, 62.611, 4.119);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (478, 1, 15.269, 28.386, 56.345, 7.231);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (378, 5, 27.28, 24.978, 47.742, 6.742);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (191, 4, 27.856, 23.576, 48.568, 9.546);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (86, 3, 15.824, 26.522, 57.654, 7.814);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (110, 3, 17.265, 22.232, 60.503, 6.903);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (31, 2, 29.347, 20.738, 49.915, 9.39);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (77, 3, 18.698, 15.314, 65.988, 5.831);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (362, 1, 21.794, 20.728, 57.478, 6.251);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (376, 4, 18.6, 24.812, 56.588, 5.985);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (231, 5, 25.005, 20.056, 54.939, 4.94);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (149, 1, 19.637, 16.377, 63.986, 7.166);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (56, 5, 28.548, 19.566, 51.886, 4.753);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (197, 4, 15.212, 24.648, 60.14, 6.566);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (494, 4, 17.329, 24.562, 58.109, 12.064);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (89, 3, 22.568, 22.081, 55.351, 6.357);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (85, 1, 28.591, 18.246, 53.163, 7.523);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (63, 5, 15.529, 15.312, 69.159, 6.346);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (240, 5, 23.919, 22.649, 53.432, 6.823);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (278, 1, 21.224, 26.647, 52.129, 6.55);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (345, 3, 19.106, 23.013, 57.881, 3.663);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (136, 4, 21.399, 24.694, 53.907, 6.555);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (273, 5, 28.348, 24.903, 46.749, 5.254);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (54, 1, 18.21, 25.474, 56.316, 6.55);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (176, 1, 18.763, 15.602, 65.635, 11.16);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (275, 4, 21.505, 24.729, 53.766, 6.064);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (331, 2, 25.779, 17.402, 56.819, 6.515);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (452, 2, 19.595, 28.815, 51.59, 7.683);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (368, 4, 24.175, 27.153, 48.672, 7.346);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (25, 5, 21.181, 17.976, 60.843, 7.423);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (115, 2, 15.006, 20.883, 64.111, 8.2);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (122, 3, 19.867, 25.865, 54.268, 3.407);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (218, 2, 28.787, 19.052, 52.161, 9.758);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (377, 4, 28.082, 18.811, 53.107, 8.773);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (202, 2, 27.071, 17.044, 55.885, 0.085);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (406, 4, 19.775, 28.281, 51.944, 4.833);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (247, 1, 27.221, 23.261, 49.518, 5.838);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (216, 5, 16.201, 26.352, 57.447, 5.908);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (10, 4, 15.003, 26.283, 58.714, 13.406);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (363, 2, 19.737, 27.607, 52.656, 5.105);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (275, 5, 24.518, 18.705, 56.777, 6.842);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (337, 3, 24.108, 25.592, 50.3, 5.98);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (189, 2, 27.252, 26.279, 46.469, 6.885);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (13, 4, 25.985, 15.089, 58.926, 5.716);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (37, 2, 28.594, 17.49, 53.916, 8.389);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (422, 1, 29.125, 21.135, 49.74, 6.046);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (316, 4, 26.917, 24.894, 48.189, 5.637);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (289, 5, 21.978, 29.321, 48.701, 8.831);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (156, 4, 15.615, 28.668, 55.717, 9.499);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (123, 5, 28.926, 23.291, 47.783, 7.049);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (77, 4, 21.376, 25.984, 52.64, 9.703);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (313, 5, 15.215, 23.909, 60.876, 10.58);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (71, 2, 15.371, 15.892, 68.737, 6.658);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (477, 5, 17.703, 28.492, 53.805, 8.626);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (236, 3, 29.067, 27.498, 43.435, 5.619);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (443, 5, 17.181, 24.736, 58.083, 7.173);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (436, 1, 18.025, 24.804, 57.171, 8.522);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (188, 2, 23.476, 28.056, 48.468, 7.008);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (230, 5, 20.656, 24.622, 54.722, 5.75);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (266, 5, 28.864, 20.063, 51.073, 7.927);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (406, 5, 18.682, 19.027, 62.291, 9.346);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (144, 4, 24.811, 20.527, 54.662, 5.382);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (35, 2, 26.955, 20.732, 52.313, 6.166);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (298, 5, 26.294, 22.895, 50.811, 5.461);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (222, 4, 28.587, 16.926, 54.487, 5.223);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (170, 2, 20.159, 27.236, 52.605, 3.092);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (119, 2, 26.747, 17.916, 55.337, 7.997);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (252, 1, 16.381, 21.933, 61.686, 7.15);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (66, 5, 28.651, 25.882, 45.467, 7.986);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (134, 2, 20.738, 17.335, 61.927, 9.699);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (289, 4, 21.961, 18.078, 59.961, 5.782);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (177, 1, 28.669, 25.081, 46.25, 9.411);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (414, 5, 15.149, 26.694, 58.157, 7.968);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (263, 1, 26.364, 26.602, 47.034, 4.479);
+insert into pi_analysis (exp_id, trial_num, percent_acidic, percent_basic, percent_main, experimental_pi) values (301, 3, 21.306, 15.97, 62.724, 7.239);
+
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (285, 1, 19.681, 0.457, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (194, 3, 23.065, 0.571, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (95, 2, 16.088, 0.314, 1);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (59, 4, 17.957, 0.49, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (218, 5, 12.661, 0.48, 10);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (215, 4, 12.576, 0.65, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (474, 5, 16.124, 0.358, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (179, 1, 15.213, 0.224, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (97, 4, 13.595, 0.928, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (343, 2, 15.183, 0.421, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (237, 4, 11.706, 0.824, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (451, 4, 18.431, 0.561, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (397, 4, 12.853, 0.722, 1);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (109, 3, 17.138, 0.861, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (212, 4, 15.688, 0.39, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (323, 5, 12.947, 0.64, 9);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (441, 2, 17.67, 0.852, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (430, 2, 13.229, 0.314, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (385, 1, 19.748, 0.545, 3);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (371, 5, 17.449, 0.378, 1);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (456, 4, 9.121, 0.358, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (398, 4, 24.96, 0.74, 10);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (316, 5, 13.399, 0.399, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (441, 5, 16.826, 0.487, 10);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (175, 2, 19.566, 0.588, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (428, 2, 19.953, 0.653, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (110, 1, 16.717, 0.649, 10);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (50, 2, 13.254, 0.551, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (233, 2, 15.538, 0.577, 3);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (317, 4, 15.487, 0.291, 3);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (104, 5, 18.094, 0.79, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (252, 2, 11.498, 0.354, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (426, 5, 16.262, 0.46, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (418, 3, 18.003, 0.69, 10);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (146, 4, 12.924, 0.387, 1);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (424, 4, 18.139, 0.578, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (185, 5, 14.094, 0.327, 10);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (24, 3, 14.326, 0.459, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (438, 5, 16.985, 0.309, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (230, 3, 16.195, 0.179, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (44, 4, 16.891, 0.292, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (316, 2, 17.028, 0.453, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (203, 5, 16.516, 0.333, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (424, 1, 17.729, 0.276, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (15, 5, 11.959, 0.807, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (363, 1, 15.174, 0.747, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (152, 5, 14.642, 0.811, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (336, 3, 11.675, 0.696, 1);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (284, 4, 11.153, 0.553, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (297, 5, 11.719, 0.278, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (36, 2, 13.521, 0.554, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (349, 4, 18.782, 0.609, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (425, 3, 18.45, 0.674, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (78, 3, 17.534, 0.602, 3);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (242, 2, 13.669, 0.318, 1);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (146, 2, 16.116, 0.604, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (11, 3, 18.181, 0.923, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (254, 2, 15.646, 0.2, 1);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (352, 3, 7.377, 0.623, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (484, 5, 13.697, 0.662, 3);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (329, 5, 13.475, 0.33, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (250, 3, 14.516, 0.746, 3);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (25, 1, 16.187, 0.346, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (408, 4, 15.08, 0.507, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (327, 2, 16.475, 0.398, 9);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (14, 2, 16.629, 0.687, 9);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (56, 5, 10.554, 0.189, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (13, 1, 12.287, 0.627, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (339, 1, 11.44, 0.508, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (490, 4, 15.99, 0.271, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (375, 3, 10.617, 0.371, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (220, 5, 19.491, 0.465, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (76, 5, 15.396, 0.555, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (87, 4, 24.142, 0.404, 2);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (55, 3, 13.173, 0.528, 9);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (448, 5, 14.833, 0.867, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (454, 5, 14.189, 0.793, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (54, 2, 7.339, 0.272, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (348, 5, 19.507, 0.858, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (202, 3, 10.462, 0.13, 5);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (159, 4, 9.352, 0.414, 10);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (406, 1, 16.729, 0.099, 9);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (58, 2, 15.995, 0.627, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (92, 1, 17.76, 0.644, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (48, 5, 16.505, 0.663, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (65, 4, 15.93, 0.322, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (361, 2, 16.89, 0.156, 9);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (306, 5, 19.133, 0.396, 6);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (61, 4, 15.398, 0.629, 7);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (145, 3, 16.654, 0.547, 8);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (437, 5, 13.853, 0.385, 4);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (330, 4, 20.123, 0.941, 3);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (306, 4, 16.873, 0.575, 3);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (433, 2, 9.74, 0.507, 1);
+insert into cell_lysis (exp_id, trial_num, max_lysis, ec50, cell_line_id) values (240, 3, 19.362, 0.49, 7);
+
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (370, 2, 13.838, 0.364, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (8, 5, 13.947, 0.885, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (34, 4, 17.034, 0.545, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (403, 1, 13.68, 0.148, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (346, 2, 17.726, 0.118, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (252, 5, 21.148, 0.284, 3);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (383, 5, 15.638, 0.393, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (464, 3, 10.816, 0.47, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (53, 2, 18.507, 0.48, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (95, 5, 16.599, 0.54, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (76, 4, 16.89, 0.246, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (494, 3, 16.157, 0.205, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (69, 1, 15.451, 0.614, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (415, 4, 14.554, 0.812, 4);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (461, 1, 13.855, 0.221, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (3, 1, 12.786, 0.593, 3);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (42, 2, 13.77, 0.568, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (24, 3, 18.639, 0.495, 7);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (143, 2, 16.227, 0.563, 7);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (253, 1, 14.094, 0.571, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (128, 1, 10.672, 0.308, 2);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (210, 3, 12.919, 0.457, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (187, 3, 20.77, 0.599, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (119, 3, 16.721, 0.403, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (7, 3, 14.106, 0.556, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (245, 4, 12.499, 0.383, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (142, 1, 19.019, 0.421, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (226, 1, 15.562, 0.524, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (134, 3, 16.349, 0.314, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (272, 2, 14.936, 0.252, 2);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (194, 4, 20.049, 0.684, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (491, 1, 13.167, 0.421, 3);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (88, 4, 16.509, 0.25, 7);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (367, 3, 11.423, 0.306, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (309, 5, 19.075, 0.494, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (231, 1, 15.834, 0.493, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (411, 4, 13.688, 0.509, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (497, 3, 7.843, 0.44, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (404, 2, 16.686, 0.568, 4);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (238, 3, 12.615, 0.601, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (392, 1, 18.432, 0.612, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (46, 5, 13.619, 0.476, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (314, 2, 13.762, 0.83, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (409, 1, 14.629, 0.408, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (432, 4, 14.957, 0.427, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (402, 3, 15.862, 0.452, 2);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (495, 5, 14.929, 0.401, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (111, 4, 14.912, 0.681, 7);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (222, 2, 15.117, 0.893, 4);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (472, 5, 11.962, 0.159, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (140, 3, 15.777, 0.454, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (410, 1, 13.433, 0.563, 2);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (211, 2, 15.519, 0.432, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (58, 2, 12.03, 0.537, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (407, 5, 6.83, 0.38, 4);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (341, 2, 10.139, 0.672, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (236, 4, 15.126, 0.699, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (132, 5, 10.038, 0.847, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (385, 3, 16.772, 0.275, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (95, 2, 8.829, 0.667, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (196, 2, 14.923, 0.69, 2);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (152, 2, 16.418, 0.549, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (70, 3, 15.645, 0.354, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (59, 5, 7.857, -0.081, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (270, 2, 13.832, 0.592, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (439, 5, 16.973, 0.697, 3);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (298, 2, 20.962, 0.529, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (183, 5, 13.1, 0.573, 8);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (57, 1, 13.273, 0.593, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (452, 5, 16.084, 0.927, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (235, 3, 14.573, 0.733, 7);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (395, 1, 17.864, 0.936, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (191, 3, 15.835, 0.311, 3);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (173, 1, 18.34, 0.691, 2);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (79, 2, 10.877, 0.298, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (493, 3, 15.223, 0.275, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (396, 2, 13.863, -0.199, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (286, 5, 14.52, 0.103, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (466, 3, 15.4, 0.378, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (348, 1, 12.003, 0.501, 4);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (25, 1, 14.811, 0.506, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (288, 4, 11.595, 0.33, 3);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (308, 1, 13.098, 0.597, 2);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (156, 4, 19.418, 0.287, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (266, 4, 19.347, 0.32, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (111, 1, 8.702, 0.651, 3);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (338, 1, 11.762, 0.692, 7);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (144, 5, 13.97, 0.601, 4);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (490, 5, 13.472, 0.478, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (116, 1, 8.617, 0.383, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (121, 5, 11.537, 0.603, 9);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (453, 5, 19.778, 0.72, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (316, 4, 12.035, 0.484, 3);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (8, 1, 15.925, 0.532, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (391, 2, 18.554, 0.511, 10);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (228, 4, 13.215, 0.48, 2);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (496, 1, 17.588, 0.816, 1);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (302, 1, 17.525, 0.55, 6);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (385, 1, 12.292, 0.54, 5);
+insert into cell_binding (exp_id, trial_num, max_expression, ec50, cell_line_id) values (258, 5, 19.137, 0.144, 1);
+
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (442, 4, 15.964, 0.393, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (221, 2, 21.408, 0.454, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (155, 4, 12.969, 0.588, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (318, 3, 14.772, 0.004, 7);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (249, 4, 11.522, 0.151, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (7, 1, 12.988, 0.678, 5);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (385, 2, 19.053, 0.509, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (244, 1, 10.631, 0.734, 4);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (179, 5, 14.001, 0.423, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (57, 1, 16.872, 0.427, 4);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (419, 1, 14.383, 0.809, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (424, 1, 18.939, 0.773, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (24, 5, 20.449, 0.126, 5);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (488, 1, 18.17, 0.518, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (407, 5, 10.942, 0.524, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (309, 4, 15.149, 0.203, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (8, 3, 14.668, 0.236, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (86, 4, 16.579, 0.295, 1);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (251, 2, 17.501, 0.663, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (398, 3, 18.78, 0.389, 5);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (267, 2, 17.843, 0.494, 1);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (295, 2, 15.547, 0.381, 6);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (140, 4, 18.1, 0.323, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (287, 2, 16.295, 0.285, 7);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (266, 3, 20.002, 0.369, 6);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (221, 1, 18.892, 0.255, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (208, 4, 13.813, 0.829, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (457, 3, 17.906, 0.416, 4);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (128, 3, 17.625, 0.629, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (86, 2, 10.694, 0.339, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (364, 4, 14.215, 0.24, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (485, 2, 11.156, 0.737, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (52, 2, 16.894, 0.37, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (119, 1, 9.345, 0.824, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (443, 3, 12.368, 0.116, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (191, 5, 15.211, 0.562, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (454, 3, 14.537, 0.459, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (388, 5, 11.327, 0.093, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (394, 5, 13.318, 0.49, 5);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (475, 4, 13.35, 0.571, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (119, 2, 14.005, 0.379, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (292, 1, 14.556, 0.549, 7);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (405, 5, 17.768, 0.551, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (48, 5, 16.374, 0.604, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (397, 2, 15.472, 0.333, 1);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (84, 3, 12.374, 0.787, 4);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (74, 5, 12.796, 0.214, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (233, 4, 20.115, 0.43, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (152, 1, 13.707, 0.564, 6);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (262, 4, 15.859, 0.528, 6);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (277, 5, 15.352, 0.662, 4);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (290, 1, 11.832, 0.299, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (163, 1, 19.92, 0.461, 7);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (377, 2, 12.266, 0.482, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (429, 2, 15.886, 0.48, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (451, 4, 14.636, 0.611, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (94, 4, 9.372, 0.566, 1);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (440, 4, 21.474, 0.495, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (421, 4, 16.523, 0.41, 4);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (103, 1, 19.783, 0.258, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (48, 3, 12.566, 0.519, 5);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (324, 4, 14.123, 0.671, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (260, 4, 17.113, 0.328, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (95, 3, 15.77, 0.394, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (76, 1, 19.908, 0.961, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (190, 4, 10.505, 0.513, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (112, 4, 12.68, 0.385, 6);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (412, 5, 11.73, 0.857, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (104, 5, 13.986, 0.261, 1);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (241, 4, 17.68, 0.492, 1);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (481, 4, 13.272, 0.356, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (112, 5, 18.853, 0.299, 1);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (421, 2, 16.57, 0.502, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (180, 2, 18.127, 0.392, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (73, 1, 11.762, 0.56, 5);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (75, 5, 12.714, 0.26, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (338, 1, 11.355, -0.064, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (290, 4, 10.506, 0.728, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (219, 3, 15.667, 0.785, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (437, 3, 16.287, 0.535, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (42, 3, 18.705, 0.432, 5);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (27, 2, 18.879, 0.531, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (380, 1, 13.922, 0.383, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (24, 4, 22.913, 0.351, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (163, 3, 14.205, 0.192, 7);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (161, 5, 17.257, 0.413, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (392, 2, 18.398, 0.5, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (254, 4, 13.802, 0.61, 5);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (393, 4, 12.678, 0.669, 4);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (408, 3, 13.428, 0.642, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (36, 2, 10.763, 0.285, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (433, 1, 14.865, 0.254, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (273, 5, 15.919, 0.558, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (11, 4, 11.986, 0.487, 9);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (28, 4, 14.684, 0.409, 10);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (19, 5, 18.99, 0.4, 8);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (211, 5, 10.925, 0.635, 2);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (246, 5, 12.601, 0.296, 3);
+insert into cell_activation (exp_id, trial_num, max_activation, ec50, cell_line_id) values (348, 3, 14.181, 0.814, 10);
+
+
+
+
